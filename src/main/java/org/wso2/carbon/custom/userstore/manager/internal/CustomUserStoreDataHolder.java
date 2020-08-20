@@ -18,26 +18,41 @@
 
 package org.wso2.carbon.custom.userstore.manager.internal;
 
+import org.wso2.carbon.identity.organization.mgt.core.OrganizationManager;
 import org.wso2.carbon.user.core.service.RealmService;
 
 public class CustomUserStoreDataHolder {
 
     private static CustomUserStoreDataHolder dataHolder = new CustomUserStoreDataHolder();
     private RealmService realmService;
+    private OrganizationManager organizationService;
 
     public static CustomUserStoreDataHolder getInstance() {
+
         return dataHolder;
     }
 
     public void setDataHolder(CustomUserStoreDataHolder dataHolder) {
+
         this.dataHolder = dataHolder;
     }
 
     public RealmService getRealmService() {
+
         return realmService;
     }
 
     public void setRealmService(RealmService realmService) {
         this.realmService = realmService;
+    }
+
+    public OrganizationManager getOrganizationService() {
+
+        return organizationService;
+    }
+
+    public void setOrganizationService(OrganizationManager organizationService) {
+
+        this.organizationService = organizationService;
     }
 }

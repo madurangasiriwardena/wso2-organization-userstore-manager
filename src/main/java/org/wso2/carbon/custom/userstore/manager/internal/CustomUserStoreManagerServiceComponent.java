@@ -28,6 +28,8 @@ import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 import org.wso2.carbon.custom.userstore.manager.CustomUserStoreManager;
+import org.wso2.carbon.identity.organization.mgt.core.OrganizationManager;
+import org.wso2.carbon.identity.organization.mgt.core.internal.OrganizationMgtDataHolder;
 import org.wso2.carbon.user.core.PaginatedUserStoreManager;
 import org.wso2.carbon.user.core.service.RealmService;
 
@@ -84,5 +86,27 @@ public class CustomUserStoreManagerServiceComponent {
             log.debug("Unset the Realm Service.");
         }
         CustomUserStoreDataHolder.getInstance().setRealmService(null);
+    }
+
+    @Reference(
+            name = "carbon.organization.mgt.component",
+            service = org.wso2.carbon.identity.organization.mgt.core.OrganizationManager.class,
+            cardinality = ReferenceCardinality.MANDATORY,
+            policy = ReferencePolicy.DYNAMIC,
+            unbind = "unsetOrganizationMgtService")
+    protected void setOrganizationMgtService(OrganizationManager organizationService) {
+
+        if (log.isDebugEnabled()) {
+            log.debug("Setting the Organization Management Service");
+        }
+        CustomUserStoreDataHolder.getInstance().setOrganizationService(organizationService);
+    }
+
+    protected void unsetOrganizationMgtService(OrganizationManager organizationService) {
+
+        if (log.isDebugEnabled()) {
+            log.debug("Unset the OrganizationManagement Service.");
+        }
+        CustomUserStoreDataHolder.getInstance().setOrganizationService(null);
     }
 }
