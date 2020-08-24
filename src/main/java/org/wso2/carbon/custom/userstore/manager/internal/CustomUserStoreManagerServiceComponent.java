@@ -29,8 +29,7 @@ import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 import org.wso2.carbon.custom.userstore.manager.CustomUserStoreManager;
 import org.wso2.carbon.identity.organization.mgt.core.OrganizationManager;
-import org.wso2.carbon.identity.organization.mgt.core.internal.OrganizationMgtDataHolder;
-import org.wso2.carbon.user.core.PaginatedUserStoreManager;
+import org.wso2.carbon.user.api.UserStoreManager;
 import org.wso2.carbon.user.core.service.RealmService;
 
 /**
@@ -55,7 +54,7 @@ public class CustomUserStoreManagerServiceComponent {
 
         try {
             BundleContext bundleContext = componentContext.getBundleContext();
-            bundleContext.registerService(PaginatedUserStoreManager.class.getName(),
+            bundleContext.registerService(UserStoreManager.class.getName(),
                     new CustomUserStoreManager(), null);
             if (log.isDebugEnabled()) {
                 log.debug("Custom user store manager component activated successfully.");

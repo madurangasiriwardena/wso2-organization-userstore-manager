@@ -1,3 +1,21 @@
+/*
+ * Copyright (c) 2020, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
+ *
+ * WSO2 Inc. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.wso2.carbon.custom.userstore.manager;
 
 import org.apache.commons.lang.StringUtils;
@@ -14,11 +32,15 @@ import static org.wso2.carbon.custom.userstore.manager.Constants.ORGANIZATION_NA
 import static org.wso2.carbon.custom.userstore.manager.Constants.ROOT_ORG_NAME;
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.DN;
 
+import org.wso2.carbon.user.api.RealmConfiguration;
 import org.wso2.carbon.user.core.UserCoreConstants;
+import org.wso2.carbon.user.core.UserRealm;
 import org.wso2.carbon.user.core.UserStoreException;
+import org.wso2.carbon.user.core.claim.ClaimManager;
 import org.wso2.carbon.user.core.common.User;
 import org.wso2.carbon.user.core.ldap.LDAPConstants;
 import org.wso2.carbon.user.core.ldap.UniqueIDReadWriteLDAPUserStoreManager;
+import org.wso2.carbon.user.core.profile.ProfileConfigurationManager;
 import org.wso2.carbon.user.core.util.JNDIUtil;
 import org.wso2.carbon.user.core.util.UserCoreUtil;
 
@@ -36,6 +58,21 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
 
     private static final Log log = LogFactory.getLog(CustomUserStoreManager.class);
 
+    public CustomUserStoreManager(){}
+
+    public CustomUserStoreManager(RealmConfiguration realmConfig, Map<String, Object> properties,
+            ClaimManager claimManager, ProfileConfigurationManager profileManager, UserRealm realm, Integer tenantId)
+                    throws UserStoreException {
+
+        super(realmConfig, properties, claimManager, profileManager, realm, tenantId);
+    }
+
+    public CustomUserStoreManager(RealmConfiguration realmConfig, ClaimManager claimManager,
+                                                 ProfileConfigurationManager profileManager) throws UserStoreException {
+
+        super(realmConfig, claimManager, profileManager);
+    }
+
     /**
      * This method creates a subDirectory in the LDAP.
      *
@@ -52,7 +89,7 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
             objClass.add("top");
             objClass.add("organizationalUnit");
             attributes.put(objClass);
-            dirContext.createSubcontext("ou=test1,ou=Users,dc=wso2,dc=org", attributes);
+            dirContext.createSubcontext(dn, attributes);
             if (log.isDebugEnabled()) {
                 log.debug("Successfully created the DN : " + dn);
             }
@@ -60,8 +97,9 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
             log.error("Error obtaining directory context to create DN : " + dn, e);
             throw e;
         } catch (NamingException e) {
-            log.error("Error while creating DN : " + dn, e);
-            throw new UserStoreException(e);
+            String errorMsg = "Error while creating the DN : " + dn;
+            log.error(errorMsg, e);
+            throw new UserStoreException(errorMsg, e);
         } finally {
             if (dirContext != null) {
                 JNDIUtil.closeContext(dirContext);
