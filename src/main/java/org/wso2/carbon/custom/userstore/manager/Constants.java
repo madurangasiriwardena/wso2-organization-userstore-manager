@@ -20,7 +20,12 @@ package org.wso2.carbon.custom.userstore.manager;
 
 public class Constants {
 
-    public static final String ORGANIZATION_NAME_SCIM2_ATTRIBUTE = "OrganizationMgt.OrgNameSCIM2Attribute";
-    public static final String ORGANIZATION_NAME_SCIM2_DEFAULT_ATTRIBUTE = "organization";
+    /**
+     *          <OrganizationMgt>
+     *             <OrgNameClaimUri>organization</OrgNameClaimUri>
+     *         </OrganizationMgt>
+     */
+    public static final String ORGANIZATION_NAME_CLAIM_URI = "OrganizationMgt.OrgNameClaimUri";
+    public static final String ORGANIZATION_NAME_SCIM2_DEFAULT_ATTRIBUTE = "http://wso2.org/claims/organization";
     public static final String ROOT_ORG_NAME = "ROOT";
 }

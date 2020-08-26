@@ -59,7 +59,6 @@ public class CustomUserStoreManagerServiceComponent {
             if (log.isDebugEnabled()) {
                 log.debug("Custom user store manager component activated successfully.");
             }
-            System.out.println("************************************************************************");
         } catch (Throwable e) {
             log.error("Error while activating custom user store manager module.", e);
         }
