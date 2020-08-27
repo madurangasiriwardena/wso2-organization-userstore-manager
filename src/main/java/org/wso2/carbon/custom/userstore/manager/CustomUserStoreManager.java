@@ -22,6 +22,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.wso2.carbon.context.PrivilegedCarbonContext;
 import org.wso2.carbon.custom.userstore.manager.internal.CustomUserStoreDataHolder;
 import org.wso2.carbon.identity.organization.mgt.core.OrganizationManager;
 import org.wso2.carbon.identity.organization.mgt.core.exception.OrganizationManagementException;
@@ -29,9 +30,10 @@ import org.wso2.carbon.identity.organization.mgt.core.model.UserStoreConfig;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
 
 import static org.wso2.carbon.custom.userstore.manager.Constants.ORGANIZATION_NAME_CLAIM_URI;
-import static org.wso2.carbon.custom.userstore.manager.Constants.ORGANIZATION_NAME_SCIM2_DEFAULT_ATTRIBUTE;
+import static org.wso2.carbon.custom.userstore.manager.Constants.ORGANIZATION_NAME_DEFAULT_CLAIM_URI;
 import static org.wso2.carbon.custom.userstore.manager.Constants.ROOT_ORG_NAME;
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.DN;
+import static org.wso2.carbon.user.core.UserCoreConstants.RealmConfig.PROPERTY_DOMAIN_NAME;
 
 import org.wso2.carbon.user.api.RealmConfiguration;
 import org.wso2.carbon.user.core.UserCoreConstants;
@@ -110,22 +112,6 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
         return getUser(userID, userName);
     }
 
-    private DirContext getOrganizationDirectoryContext(String dn) throws UserStoreException {
-
-        DirContext mainDirContext = this.connectionSource.getContext();
-        try {
-            return (DirContext) mainDirContext.lookup(escapeDNForSearch(dn));
-        } catch (NamingException e) {
-            String errorMessage = "Can not access the directory context for the DN : " + dn;
-            if (log.isDebugEnabled()) {
-                log.debug(errorMessage, e);
-            }
-            throw new UserStoreException(errorMessage, e);
-        } finally {
-            JNDIUtil.closeContext(mainDirContext);
-        }
-    }
-
     @Override
     protected UniqueIDPaginatedSearchResult doGetUserListWithID(Condition condition, String profileName, int limit,
                                                                 int offset, String sortBy, String sortOrder) throws UserStoreException {
@@ -147,40 +133,68 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
     protected PaginatedSearchResult doGetUserList(Condition condition, String profileName, int limit, int offset,
                                                   String sortBy, String sortOrder) throws UserStoreException {
 
-        String orgName = "Hesei";
-        OrganizationManager orgService = CustomUserStoreDataHolder.getInstance().getOrganizationService();
-        String orgId;
-        try {
-            orgId = orgService.getOrganizationIdByName(orgName);
-        } catch (OrganizationManagementException e) {
-            if (log.isDebugEnabled()) {
-                log.debug("Provided organization name : " + orgName + " doesn't exist in this tenant.");
-            }
-            throw new UserStoreException("Invalid organization name : " + orgName, e);
-        }
-        Map<String, UserStoreConfig> userStoreConfigs;
-        try {
-            userStoreConfigs = orgService.getUserStoreConfigs(orgId);
-        } catch (OrganizationManagementException e) {
-            String errorMsg = "Error while obtaining user store information for the organization id : " + orgId;
-            log.error(errorMsg, e);
-            throw new UserStoreException(errorMsg, e);
-        }
-        String dn = userStoreConfigs.get(DN).getValue();
-
         PaginatedSearchResult result = new PaginatedSearchResult();
         // Since we support only AND operation get expressions as a list.
         List<ExpressionCondition> expressionConditions = getExpressionConditions(condition);
+        String orgNameClaimUri = !StringUtils.isBlank(IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI))
+                ? IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI).trim() : ORGANIZATION_NAME_DEFAULT_CLAIM_URI;
+        String orgAttributeName;
+        try {
+            int tenantId = PrivilegedCarbonContext.getThreadLocalCarbonContext().getTenantId();
+            org.wso2.carbon.user.api.UserRealm tenantUserRealm = CustomUserStoreDataHolder.getInstance().getRealmService()
+                    .getTenantUserRealm(tenantId);
+            org.wso2.carbon.user.api.ClaimManager claimManager = tenantUserRealm.getClaimManager();
+            orgAttributeName = claimManager.getAttributeName(
+                    this.realmConfig.getUserStoreProperty(PROPERTY_DOMAIN_NAME),
+                    orgNameClaimUri
+            );
+        } catch (org.wso2.carbon.user.api.UserStoreException e) {
+            String errorMsg = "Error obtaining organization claim details : " + e.getMessage();
+            log.error(errorMsg);
+            throw new UserStoreException(errorMsg, e);
+        }
+
+        OrganizationManager orgService = CustomUserStoreDataHolder.getInstance().getOrganizationService();
+        String orgSearchBase;
+        String orgIdentifier = null;
+        // Find the organization DN (search base)
+        // Find the organization identifier from the search conditions
+        for (int i = 0; i < expressionConditions.size(); i++) {
+            if (expressionConditions.get(i).getAttributeName().equals(orgAttributeName)) {
+                // This could be either the organization name or ID
+                orgIdentifier = expressionConditions.get(i).getAttributeValue().trim();
+                // Organization identifier shouldn't be considered as a search condition.
+                expressionConditions.remove(i);
+                break;
+            }
+        }
+        try {
+            // First, assume that the identifier is the organization name
+            orgIdentifier = orgService.getOrganizationIdByName(orgIdentifier);
+        } catch (OrganizationManagementException e) {
+            if (log.isDebugEnabled()) {
+                log.debug("Received identifier is a possible organization ID : " + orgIdentifier, e);
+            }
+        }
+        try {
+            // Get user store configs by organization ID
+            // If 'orgIdentifier' is null, search will be done from the root level
+            orgSearchBase = orgIdentifier != null ? orgService.getUserStoreConfigs(orgIdentifier).get(DN).getValue()
+                    : null;
+        } catch (OrganizationManagementException e) {
+            String errorMsg = "Error while obtaining organization metadata : " + e.getMessage();
+            log.error(errorMsg, e);
+            throw new UserStoreException(errorMsg, e);
+        }
+
         LDAPSearchSpecification ldapSearchSpecification = new LDAPSearchSpecification(realmConfig,
                 expressionConditions);
         boolean isMemberShipPropertyFound = ldapSearchSpecification.isMemberShipPropertyFound();
         limit = getLimit(limit, isMemberShipPropertyFound);
         offset = getOffset(offset);
-
         if (limit == 0) {
             return result;
         }
-
         int pageSize = limit;
         DirContext dirContext = this.connectionSource.getContext();
         LdapContext ldapContext = (LdapContext) dirContext;
@@ -190,7 +204,7 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
         try {
             ldapContext.setRequestControls(new Control[]{new PagedResultsControl(pageSize, Control.CRITICAL),
                     new SortControl(userNameAttribute, Control.NONCRITICAL)});
-            users = performLDAPSearch(ldapContext, ldapSearchSpecification, dn, pageSize, offset, expressionConditions);
+            users = performLDAPSearch(ldapContext, ldapSearchSpecification, orgSearchBase, pageSize, offset, expressionConditions);
             for (String ldapUser : users) {
                 ldapUsers.add(UserCoreUtil.addDomainToName(ldapUser, getMyDomainName()));
             }
@@ -243,11 +257,27 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
         }
     }
 
+    private DirContext getOrganizationDirectoryContext(String dn) throws UserStoreException {
+
+        DirContext mainDirContext = this.connectionSource.getContext();
+        try {
+            return (DirContext) mainDirContext.lookup(escapeDNForSearch(dn));
+        } catch (NamingException e) {
+            String errorMessage = "Can not access the directory context for the DN : " + dn;
+            if (log.isDebugEnabled()) {
+                log.debug(errorMessage, e);
+            }
+            throw new UserStoreException(errorMessage, e);
+        } finally {
+            JNDIUtil.closeContext(mainDirContext);
+        }
+    }
+
     protected void persistUser(String userID, String userName, Object credential, String[] roleList,
                                Map<String, String> claims) throws UserStoreException {
 
         String orgNameClaimUri = !StringUtils.isBlank(IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI))
-                ? IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI).trim() : ORGANIZATION_NAME_SCIM2_DEFAULT_ATTRIBUTE;
+                ? IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI).trim() : ORGANIZATION_NAME_DEFAULT_CLAIM_URI;
         // If org name is not defined, user will be created under ROOT
         String orgName = (claims != null && !StringUtils.isBlank(claims.get(orgNameClaimUri)))
                 ? claims.get(orgNameClaimUri).trim() : ROOT_ORG_NAME;
@@ -459,9 +489,15 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
         boolean isClaimFiltering = ldapSearchSpecification.isClaimFiltering();
         boolean isMemberShipPropertyFound = ldapSearchSpecification.isMemberShipPropertyFound();
 
-        String searchBases = ldapSearchSpecification.getSearchBases();
-//        String[] searchBaseAraay = searchBases.split("#");
         String[] searchBaseArray = {orgSearchBase};
+        // If not defined search in ROOT
+        if (orgSearchBase == null) {
+            String searchBases = ldapSearchSpecification.getSearchBases();
+            searchBaseArray = searchBases.split("#");
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("Searching in the subdirectory : " + Arrays.toString(searchBaseArray));
+        }
         String searchFilter = ldapSearchSpecification.getSearchFilterQuery();
         SearchControls searchControls = ldapSearchSpecification.getSearchControls();
         List<String> returnedAttributes = Arrays.asList(searchControls.getReturningAttributes());
@@ -780,7 +816,7 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
                     }
                 }
                 String domainName =
-                        realmConfig.getUserStoreProperty(UserCoreConstants.RealmConfig.PROPERTY_DOMAIN_NAME);
+                        realmConfig.getUserStoreProperty(PROPERTY_DOMAIN_NAME);
                 /* Username will be null in the special case where the username attribute has changed to another
                 and having different userNameProperty than the current user-mgt.xml. */
                 if (userName != null) {

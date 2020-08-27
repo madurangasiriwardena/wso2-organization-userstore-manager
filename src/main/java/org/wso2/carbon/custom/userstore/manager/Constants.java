@@ -26,6 +26,6 @@ public class Constants {
      *         </OrganizationMgt>
      */
     public static final String ORGANIZATION_NAME_CLAIM_URI = "OrganizationMgt.OrgNameClaimUri";
-    public static final String ORGANIZATION_NAME_SCIM2_DEFAULT_ATTRIBUTE = "http://wso2.org/claims/organization";
+    public static final String ORGANIZATION_NAME_DEFAULT_CLAIM_URI = "http://wso2.org/claims/organization";
     public static final String ROOT_ORG_NAME = "ROOT";
 }
