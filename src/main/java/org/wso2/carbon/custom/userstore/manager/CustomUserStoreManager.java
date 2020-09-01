@@ -25,7 +25,9 @@ import org.apache.commons.logging.LogFactory;
 import org.wso2.carbon.context.PrivilegedCarbonContext;
 import org.wso2.carbon.custom.userstore.manager.internal.CustomUserStoreDataHolder;
 import org.wso2.carbon.identity.organization.mgt.core.OrganizationManager;
+import org.wso2.carbon.identity.organization.mgt.core.exception.OrganizationManagementClientException;
 import org.wso2.carbon.identity.organization.mgt.core.exception.OrganizationManagementException;
+import org.wso2.carbon.identity.organization.mgt.core.exception.OrganizationManagementServerException;
 import org.wso2.carbon.identity.organization.mgt.core.model.UserStoreConfig;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
 
@@ -171,10 +173,14 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
         try {
             // First, assume that the identifier is the organization name
             orgIdentifier = orgService.getOrganizationIdByName(orgIdentifier);
-        } catch (OrganizationManagementException e) {
+        } catch (OrganizationManagementClientException e) {
             if (log.isDebugEnabled()) {
                 log.debug("Received identifier is a possible organization ID : " + orgIdentifier, e);
             }
+        } catch (OrganizationManagementException e) {
+            String errorMsg = "Error while obtaining organization Id : " + e.getMessage();
+            log.error(errorMsg, e);
+            throw new UserStoreException(errorMsg, e);
         }
         try {
             // Get user store configs by organization ID
@@ -279,32 +285,43 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
         String orgNameClaimUri = !StringUtils.isBlank(IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI))
                 ? IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI).trim() : ORGANIZATION_NAME_DEFAULT_CLAIM_URI;
         // If org name is not defined, user will be created under ROOT
-        String orgName = (claims != null && !StringUtils.isBlank(claims.get(orgNameClaimUri)))
+        String orgIdentifier = (claims != null && !StringUtils.isBlank(claims.get(orgNameClaimUri)))
                 ? claims.get(orgNameClaimUri).trim() : ROOT_ORG_NAME;
         // Don't persist the organization claim.
         if (claims.containsKey(orgNameClaimUri)) {
             claims.remove(orgNameClaimUri);
         }
         DirContext dirContext;
-        if (orgName.equalsIgnoreCase(ROOT_ORG_NAME)) {
+        if (orgIdentifier.equalsIgnoreCase(ROOT_ORG_NAME)) {
             if (log.isDebugEnabled()) {
                 log.debug("Organization name : " + ROOT_ORG_NAME);
             }
             dirContext = super.getSearchBaseDirectoryContext();
         } else {
             OrganizationManager organizationService = CustomUserStoreDataHolder.getInstance().getOrganizationService();
-            Map<String, UserStoreConfig> userStoreConfigs;
             try {
-                String orgId = organizationService.getOrganizationIdByName(orgName);
-                userStoreConfigs = organizationService.getUserStoreConfigs(orgId);
+                // First, assume that the identifier is the organization name
+                orgIdentifier = organizationService.getOrganizationIdByName(orgIdentifier);
+            } catch (OrganizationManagementClientException e) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Received identifier is a possible organization Id : " + orgIdentifier, e);
+                }
             } catch (OrganizationManagementException e) {
-                String errorMsg = "Error while retrieving organization information for the name : " + orgName;
+                String errorMsg = "Error while obtaining organization Id : " + e.getMessage();
                 log.error(errorMsg, e);
                 throw new UserStoreException(errorMsg, e);
             }
-            String orgDn = userStoreConfigs.get(DN).getValue();
+            String orgDn;
+            try {
+                // Get user store configs by organization ID
+                orgDn = organizationService.getUserStoreConfigs(orgIdentifier).get(DN).getValue();
+            } catch (OrganizationManagementException e) {
+                String errorMsg = "Error while obtaining organization metadata : " + e.getMessage();
+                log.error(errorMsg, e);
+                throw new UserStoreException(errorMsg, e);
+            }
             if (log.isDebugEnabled()) {
-                log.debug("Organization name : " + orgName + ", DN : " + orgDn);
+                log.debug("Organization id : " + orgIdentifier + ", DN : " + orgDn);
             }
             dirContext = getOrganizationDirectoryContext(orgDn);
         }
