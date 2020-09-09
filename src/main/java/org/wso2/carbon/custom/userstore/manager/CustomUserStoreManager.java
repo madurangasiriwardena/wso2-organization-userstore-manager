@@ -111,6 +111,8 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
 
         String userID = getUniqueUserID();
         persistUser(userID, userName, credential, roleList, claims);
+        // TODO get org name of the user in the response
+        // TODO Get org name in GET user  as well
         return getUser(userID, userName);
     }
 
