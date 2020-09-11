@@ -31,6 +31,8 @@ import org.wso2.carbon.identity.organization.mgt.core.exception.OrganizationMana
 import org.wso2.carbon.identity.organization.mgt.core.model.UserStoreConfig;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
 
+import static org.wso2.carbon.custom.userstore.manager.Constants.ORGANIZATION_ID_CLAIM_URI;
+import static org.wso2.carbon.custom.userstore.manager.Constants.ORGANIZATION_ID_DEFAULT_CLAIM_URI;
 import static org.wso2.carbon.custom.userstore.manager.Constants.ORGANIZATION_NAME_CLAIM_URI;
 import static org.wso2.carbon.custom.userstore.manager.Constants.ORGANIZATION_NAME_DEFAULT_CLAIM_URI;
 import static org.wso2.carbon.custom.userstore.manager.Constants.ROOT_ORG_NAME;
@@ -119,7 +121,8 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
     @Override
     protected UniqueIDPaginatedSearchResult doGetUserListWithID(Condition condition, String profileName, int limit,
                                                                 int offset, String sortBy, String sortOrder) throws UserStoreException {
-
+        //TODO Check the GET request CURL filter format issue.
+        // TODO send both corrected ADD/LIST user requests to customer
         PaginatedSearchResult userNames = doGetUserList(condition, profileName, limit, offset, sortBy, sortOrder);
         UniqueIDPaginatedSearchResult userList = new UniqueIDPaginatedSearchResult();
         userList.setPaginatedSearchResult(userNames);
@@ -140,50 +143,69 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
         PaginatedSearchResult result = new PaginatedSearchResult();
         // Since we support only AND operation get expressions as a list.
         List<ExpressionCondition> expressionConditions = getExpressionConditions(condition);
+        // Get organization id and organization name claim URIs
         String orgNameClaimUri = !StringUtils.isBlank(IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI))
                 ? IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI).trim() : ORGANIZATION_NAME_DEFAULT_CLAIM_URI;
-        String orgAttributeName;
+        String orgIdClaimUri = !StringUtils.isBlank(IdentityUtil.getProperty(ORGANIZATION_ID_CLAIM_URI))
+                ? IdentityUtil.getProperty(ORGANIZATION_ID_CLAIM_URI).trim() : ORGANIZATION_ID_DEFAULT_CLAIM_URI;
+        // Find respective attribute names
+        String orgNameAttribute, orgIdAttribute;
         try {
             int tenantId = PrivilegedCarbonContext.getThreadLocalCarbonContext().getTenantId();
             org.wso2.carbon.user.api.UserRealm tenantUserRealm = CustomUserStoreDataHolder.getInstance().getRealmService()
                     .getTenantUserRealm(tenantId);
             org.wso2.carbon.user.api.ClaimManager claimManager = tenantUserRealm.getClaimManager();
-            orgAttributeName = claimManager.getAttributeName(
+            orgNameAttribute = claimManager.getAttributeName(
                     this.realmConfig.getUserStoreProperty(PROPERTY_DOMAIN_NAME),
                     orgNameClaimUri
             );
+            orgIdAttribute = claimManager.getAttributeName(
+                    this.realmConfig.getUserStoreProperty(PROPERTY_DOMAIN_NAME),
+                    orgIdClaimUri
+            );
         } catch (org.wso2.carbon.user.api.UserStoreException e) {
-            String errorMsg = "Error obtaining organization claim details : " + e.getMessage();
+            String errorMsg = "Error obtaining organization claim/attribute mappings : " + e.getMessage();
             log.error(errorMsg);
             throw new UserStoreException(errorMsg, e);
         }
 
-        OrganizationManager orgService = CustomUserStoreDataHolder.getInstance().getOrganizationService();
         String orgSearchBase;
+        boolean nameAsIdentifier = false;
         String orgIdentifier = null;
         // Find the organization DN (search base)
         // Find the organization identifier from the search conditions
         for (int i = 0; i < expressionConditions.size(); i++) {
-            if (expressionConditions.get(i).getAttributeName().equals(orgAttributeName)) {
-                // This could be either the organization name or ID
+            if (expressionConditions.get(i).getAttributeName().equals(orgNameAttribute)) {
+                // Received organization name as the identifier
+                nameAsIdentifier = true;
                 orgIdentifier = expressionConditions.get(i).getAttributeValue().trim();
-                // Organization identifier shouldn't be considered as a search condition.
+                // Organization name shouldn't be considered as a search condition.
+                expressionConditions.remove(i);
+                break;
+            } else if (expressionConditions.get(i).getAttributeName().equals(orgIdAttribute)) {
+                // Received organization id as the identifier
+                orgIdentifier = expressionConditions.get(i).getAttributeValue().trim();
+                // Organization id shouldn't be considered as a search condition.
                 expressionConditions.remove(i);
                 break;
             }
         }
+        // Resolve organization identifier
+        OrganizationManager orgService = CustomUserStoreDataHolder.getInstance().getOrganizationService();
         try {
-            // First, assume that the identifier is the organization name
-            orgIdentifier = orgService.getOrganizationIdByName(orgIdentifier);
+            orgIdentifier = nameAsIdentifier ? orgService.getOrganizationIdByName(orgIdentifier) : orgIdentifier;
         } catch (OrganizationManagementClientException e) {
+            String errorMsg = "Failed resolving organization name : " + orgIdentifier + " to an organization id";
             if (log.isDebugEnabled()) {
-                log.debug("Received identifier is a possible organization ID : " + orgIdentifier, e);
+                log.debug(errorMsg, e);
             }
+            throw new UserStoreException(errorMsg, e);
         } catch (OrganizationManagementException e) {
             String errorMsg = "Error while obtaining organization Id : " + e.getMessage();
             log.error(errorMsg, e);
             throw new UserStoreException(errorMsg, e);
         }
+        // Resolve user search base
         try {
             // Get user store configs by organization ID
             // If 'orgIdentifier' is null, search will be done from the root level
@@ -286,28 +308,42 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
 
         String orgNameClaimUri = !StringUtils.isBlank(IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI))
                 ? IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI).trim() : ORGANIZATION_NAME_DEFAULT_CLAIM_URI;
-        // If org name is not defined, user will be created under ROOT
-        String orgIdentifier = (claims != null && !StringUtils.isBlank(claims.get(orgNameClaimUri)))
-                ? claims.get(orgNameClaimUri).trim() : ROOT_ORG_NAME;
-        // Don't persist the organization claim.
-        if (claims.containsKey(orgNameClaimUri)) {
+        String orgIdClaimUri = !StringUtils.isBlank(IdentityUtil.getProperty(ORGANIZATION_ID_CLAIM_URI))
+                ? IdentityUtil.getProperty(ORGANIZATION_ID_CLAIM_URI).trim() : ORGANIZATION_ID_DEFAULT_CLAIM_URI;
+
+        boolean nameAsIdentifier = false;
+        String orgIdentifier;
+        if (claims != null && !StringUtils.isBlank(claims.get(orgNameClaimUri))) {
+            orgIdentifier = claims.get(orgNameClaimUri).trim();
+            nameAsIdentifier = true;
+        } else if (claims != null && !StringUtils.isBlank(claims.get(orgIdClaimUri))) {
+            orgIdentifier = claims.get(orgIdClaimUri).trim();
+        } else {
+            // If org name or id is not defined in the request, user will be created under ROOT
+            orgIdentifier = ROOT_ORG_NAME;
+        }
+        // Don't persist organization identifier claim
+        if (nameAsIdentifier) {
             claims.remove(orgNameClaimUri);
+        } else if (!nameAsIdentifier && !ROOT_ORG_NAME.equals(orgIdentifier)) {
+            claims.remove(orgIdClaimUri);
         }
         DirContext dirContext;
-        if (orgIdentifier.equalsIgnoreCase(ROOT_ORG_NAME)) {
+        if (ROOT_ORG_NAME.equalsIgnoreCase(orgIdentifier)) {
             if (log.isDebugEnabled()) {
-                log.debug("Organization name : " + ROOT_ORG_NAME);
+                log.debug("Organization identifier : " + ROOT_ORG_NAME);
             }
             dirContext = super.getSearchBaseDirectoryContext();
         } else {
             OrganizationManager organizationService = CustomUserStoreDataHolder.getInstance().getOrganizationService();
             try {
-                // First, assume that the identifier is the organization name
-                orgIdentifier = organizationService.getOrganizationIdByName(orgIdentifier);
+                orgIdentifier = nameAsIdentifier ? organizationService.getOrganizationIdByName(orgIdentifier) : orgIdentifier;
             } catch (OrganizationManagementClientException e) {
+                String errorMsg = "Failed resolving organization name : " + orgIdentifier + " to an organization id";
                 if (log.isDebugEnabled()) {
-                    log.debug("Received identifier is a possible organization Id : " + orgIdentifier, e);
+                    log.debug(errorMsg, e);
                 }
+                throw new UserStoreException(errorMsg, e);
             } catch (OrganizationManagementException e) {
                 String errorMsg = "Error while obtaining organization Id : " + e.getMessage();
                 log.error(errorMsg, e);
