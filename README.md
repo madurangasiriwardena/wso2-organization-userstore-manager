@@ -84,17 +84,19 @@ attribute_validator_class = "org.wso2.carbon.identity.organization.mgt.core.vali
 List/filter users of an organization (define organization by its 'id' or 'name')
 ```
 curl -X GET \
-  'https://localhost:9443/scim2/Users?startIndex=0&count=10&domain=WSO2.COM&filter=urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:organization.id+Eq+cca6bb80-6252-4d98-9331-c8c6d48dbca3' \
+  'https://localhost:9443/scim2/Users?startIndex=0&count=10&domain=WSO2.COM&filter=urn:ietf:params:scim:schemas:extension:enterprise:2.0:User.organization.id+eq+cca6bb80-6252-4d98-9331-c8c6d48dbca3' \
   -H 'Accept: application/json' \
+  -H 'Authorization: Basic YWRtaW46YWRtaW4=' \
   -H 'Content-Type: application/json' \
-  -H 'Postman-Token: c8e48be0-e71d-45cd-b222-e258711d1a2d' \
+  -H 'Postman-Token: ff645216-78f8-48d5-91fe-aedea074b05e' \
   -H 'cache-control: no-cache'
 
 curl -X GET \
-  'https://localhost:9443/scim2/Users?startIndex=0&count=10&domain=WSO2.COM&filter=urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:organization.name+Eq+Hesei' \
+  'https://localhost:9443/scim2/Users?startIndex=0&count=10&domain=WSO2.COM&filter=urn:ietf:params:scim:schemas:extension:enterprise:2.0:User.organization.name+eq+Hesei' \
   -H 'Accept: application/json' \
+  -H 'Authorization: Basic YWRtaW46YWRtaW4=' \
   -H 'Content-Type: application/json' \
-  -H 'Postman-Token: c8e48be0-e71d-45cd-b222-e258711d1a2d' \
+  -H 'Postman-Token: 66c9e3d6-64c9-490a-b936-a4a46380240b' \
   -H 'cache-control: no-cache'
 ```
 
@@ -110,14 +112,14 @@ curl -X POST \
   -d '{
     "schemas": [],
     "name": {
-        "givenName": "John34",
+        "givenName": "John",
         "familyName": "Doe"
     },
-    "userName": "WSO2.com/johndoe34",
+    "userName": "WSO2.com/johndoe",
     "password": "abc123",
     "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User": {
         "organization": {
-            "id": "Hesei3"
+            "id": "Hesei"
         }
     }
 }'
@@ -132,14 +134,14 @@ curl -X POST \
   -d '{
     "schemas": [],
     "name": {
-        "givenName": "John34",
+        "givenName": "John",
         "familyName": "Doe"
     },
-    "userName": "WSO2.com/johndoe34",
+    "userName": "WSO2.com/johndoe",
     "password": "abc123",
     "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User": {
         "organization": {
-            "name": "Hesei3"
+            "name": "Hesei"
         }
     }
 }'
