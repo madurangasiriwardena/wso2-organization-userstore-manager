@@ -119,7 +119,7 @@ curl -X POST \
     "password": "abc123",
     "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User": {
         "organization": {
-            "id": "Hesei"
+            "id": "cca6bb80-6252-4d98-9331-c8c6d48dbca3"
         }
     }
 }'
