@@ -28,6 +28,7 @@ import org.wso2.carbon.identity.organization.mgt.core.OrganizationManager;
 import org.wso2.carbon.identity.organization.mgt.core.exception.OrganizationManagementClientException;
 import org.wso2.carbon.identity.organization.mgt.core.exception.OrganizationManagementException;
 import org.wso2.carbon.identity.organization.mgt.core.exception.OrganizationManagementServerException;
+import org.wso2.carbon.identity.organization.mgt.core.model.Organization;
 import org.wso2.carbon.identity.organization.mgt.core.model.UserStoreConfig;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
 
@@ -121,8 +122,7 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
     @Override
     protected UniqueIDPaginatedSearchResult doGetUserListWithID(Condition condition, String profileName, int limit,
                                                                 int offset, String sortBy, String sortOrder) throws UserStoreException {
-        //TODO Check the GET request CURL filter format issue.
-        // TODO send both corrected ADD/LIST user requests to customer
+
         PaginatedSearchResult userNames = doGetUserList(condition, profileName, limit, offset, sortBy, sortOrder);
         UniqueIDPaginatedSearchResult userList = new UniqueIDPaginatedSearchResult();
         userList.setPaginatedSearchResult(userNames);
@@ -322,22 +322,22 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
             // If org name or id is not defined in the request, user will be created under ROOT
             orgIdentifier = ROOT_ORG_NAME;
         }
-        // Don't persist organization identifier claim
-        if (nameAsIdentifier) {
-            claims.remove(orgNameClaimUri);
-        } else if (!nameAsIdentifier && !ROOT_ORG_NAME.equals(orgIdentifier)) {
-            claims.remove(orgIdClaimUri);
-        }
         DirContext dirContext;
         if (ROOT_ORG_NAME.equalsIgnoreCase(orgIdentifier)) {
             if (log.isDebugEnabled()) {
                 log.debug("Organization identifier : " + ROOT_ORG_NAME);
             }
+            claims.put(orgNameClaimUri, ROOT_ORG_NAME);
+            claims.put(orgIdClaimUri, ROOT_ORG_NAME);
             dirContext = super.getSearchBaseDirectoryContext();
         } else {
             OrganizationManager organizationService = CustomUserStoreDataHolder.getInstance().getOrganizationService();
+            Organization organization;
             try {
                 orgIdentifier = nameAsIdentifier ? organizationService.getOrganizationIdByName(orgIdentifier) : orgIdentifier;
+                organization = organizationService.getOrganization(orgIdentifier);
+                claims.put(orgNameClaimUri, organization.getName());
+                claims.put(orgIdClaimUri, organization.getId());
             } catch (OrganizationManagementClientException e) {
                 String errorMsg = "Failed resolving organization name : " + orgIdentifier + " to an organization id";
                 if (log.isDebugEnabled()) {
@@ -348,6 +348,14 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
                 String errorMsg = "Error while obtaining organization Id : " + e.getMessage();
                 log.error(errorMsg, e);
                 throw new UserStoreException(errorMsg, e);
+            }
+            // Check if organization is active
+            if (!Organization.OrgStatus.ACTIVE.equals(organization.getStatus())) {
+                String errorMsg = "Organization is not active : " + orgIdentifier;
+                if (log.isDebugEnabled()) {
+                    log.debug(errorMsg);
+                }
+                throw new UserStoreException(errorMsg);
             }
             String orgDn;
             try {
