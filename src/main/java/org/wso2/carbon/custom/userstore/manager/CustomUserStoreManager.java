@@ -114,14 +114,12 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
 
         String userID = getUniqueUserID();
         persistUser(userID, userName, credential, roleList, claims);
-        // TODO get org name of the user in the response
-        // TODO Get org name in GET user  as well
         return getUser(userID, userName);
     }
 
     @Override
     protected UniqueIDPaginatedSearchResult doGetUserListWithID(Condition condition, String profileName, int limit,
-                                                                int offset, String sortBy, String sortOrder) throws UserStoreException {
+                                int offset, String sortBy, String sortOrder) throws UserStoreException {
 
         PaginatedSearchResult userNames = doGetUserList(condition, profileName, limit, offset, sortBy, sortOrder);
         UniqueIDPaginatedSearchResult userList = new UniqueIDPaginatedSearchResult();
@@ -631,7 +629,7 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
     }
 
     private List<String> getUserListFromSearch(boolean isGroupFiltering, List<String> returnedAttributes,
-                                               NamingEnumeration<SearchResult> answer, boolean isSingleAttributeFilter) throws UserStoreException {
+               NamingEnumeration<SearchResult> answer, boolean isSingleAttributeFilter) throws UserStoreException {
 
         List<String> tempUserList;
         if (isGroupFiltering) {
@@ -772,8 +770,7 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
     }
 
     private List<String> getUserListFromNonGroupFilterResult(NamingEnumeration<SearchResult> answer,
-                                                             List<String> returnedAttributes)
-            throws UserStoreException {
+                                                     List<String> returnedAttributes) throws UserStoreException {
 
         List<String> finalUserList = new ArrayList<>();
         String userAttributeSeparator = ",";
