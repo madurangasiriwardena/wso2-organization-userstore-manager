@@ -96,21 +96,21 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
     }
 
     public CustomUserStoreManager(RealmConfiguration realmConfig, Map<String, Object> properties,
-                                  ClaimManager claimManager, ProfileConfigurationManager profileManager, UserRealm realm, Integer tenantId)
+            ClaimManager claimManager, ProfileConfigurationManager profileManager, UserRealm realm, Integer tenantId)
             throws UserStoreException {
 
         super(realmConfig, properties, claimManager, profileManager, realm, tenantId);
     }
 
     public CustomUserStoreManager(RealmConfiguration realmConfig, ClaimManager claimManager,
-                                  ProfileConfigurationManager profileManager) throws UserStoreException {
+            ProfileConfigurationManager profileManager) throws UserStoreException {
 
         super(realmConfig, claimManager, profileManager);
     }
 
     @Override
     public User doAddUserWithID(String userName, Object credential, String[] roleList, Map<String, String> claims,
-                                String profileName, boolean requirePasswordChange) throws UserStoreException {
+            String profileName, boolean requirePasswordChange) throws UserStoreException {
 
         String userID = getUniqueUserID();
         persistUser(userID, userName, credential, roleList, claims);
@@ -119,7 +119,7 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
 
     @Override
     protected UniqueIDPaginatedSearchResult doGetUserListWithID(Condition condition, String profileName, int limit,
-                                int offset, String sortBy, String sortOrder) throws UserStoreException {
+            int offset, String sortBy, String sortOrder) throws UserStoreException {
 
         PaginatedSearchResult userNames = doGetUserList(condition, profileName, limit, offset, sortBy, sortOrder);
         UniqueIDPaginatedSearchResult userList = new UniqueIDPaginatedSearchResult();
@@ -136,31 +136,29 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
 
     @Override
     protected PaginatedSearchResult doGetUserList(Condition condition, String profileName, int limit, int offset,
-                                                  String sortBy, String sortOrder) throws UserStoreException {
+            String sortBy, String sortOrder) throws UserStoreException {
 
         PaginatedSearchResult result = new PaginatedSearchResult();
         // Since we support only AND operation get expressions as a list.
         List<ExpressionCondition> expressionConditions = getExpressionConditions(condition);
         // Get organization id and organization name claim URIs
-        String orgNameClaimUri = !StringUtils.isBlank(IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI))
-                ? IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI).trim() : ORGANIZATION_NAME_DEFAULT_CLAIM_URI;
-        String orgIdClaimUri = !StringUtils.isBlank(IdentityUtil.getProperty(ORGANIZATION_ID_CLAIM_URI))
-                ? IdentityUtil.getProperty(ORGANIZATION_ID_CLAIM_URI).trim() : ORGANIZATION_ID_DEFAULT_CLAIM_URI;
+        String orgNameClaimUri = !StringUtils.isBlank(IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI)) ?
+                IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI).trim() :
+                ORGANIZATION_NAME_DEFAULT_CLAIM_URI;
+        String orgIdClaimUri = !StringUtils.isBlank(IdentityUtil.getProperty(ORGANIZATION_ID_CLAIM_URI)) ?
+                IdentityUtil.getProperty(ORGANIZATION_ID_CLAIM_URI).trim() :
+                ORGANIZATION_ID_DEFAULT_CLAIM_URI;
         // Find respective attribute names
         String orgNameAttribute, orgIdAttribute;
         try {
             int tenantId = PrivilegedCarbonContext.getThreadLocalCarbonContext().getTenantId();
-            org.wso2.carbon.user.api.UserRealm tenantUserRealm = CustomUserStoreDataHolder.getInstance().getRealmService()
-                    .getTenantUserRealm(tenantId);
+            org.wso2.carbon.user.api.UserRealm tenantUserRealm = CustomUserStoreDataHolder.getInstance()
+                    .getRealmService().getTenantUserRealm(tenantId);
             org.wso2.carbon.user.api.ClaimManager claimManager = tenantUserRealm.getClaimManager();
-            orgNameAttribute = claimManager.getAttributeName(
-                    this.realmConfig.getUserStoreProperty(PROPERTY_DOMAIN_NAME),
-                    orgNameClaimUri
-            );
-            orgIdAttribute = claimManager.getAttributeName(
-                    this.realmConfig.getUserStoreProperty(PROPERTY_DOMAIN_NAME),
-                    orgIdClaimUri
-            );
+            orgNameAttribute = claimManager
+                    .getAttributeName(this.realmConfig.getUserStoreProperty(PROPERTY_DOMAIN_NAME), orgNameClaimUri);
+            orgIdAttribute = claimManager
+                    .getAttributeName(this.realmConfig.getUserStoreProperty(PROPERTY_DOMAIN_NAME), orgIdClaimUri);
         } catch (org.wso2.carbon.user.api.UserStoreException e) {
             String errorMsg = "Error obtaining organization claim/attribute mappings : " + e.getMessage();
             log.error(errorMsg);
@@ -207,8 +205,8 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
         try {
             // Get user store configs by organization ID
             // If 'orgIdentifier' is null, search will be done from the root level
-            orgSearchBase = orgIdentifier != null ? orgService.getUserStoreConfigs(orgIdentifier).get(DN).getValue()
-                    : null;
+            orgSearchBase =
+                    orgIdentifier != null ? orgService.getUserStoreConfigs(orgIdentifier).get(DN).getValue() : null;
         } catch (OrganizationManagementException e) {
             String errorMsg = "Error while obtaining organization metadata : " + e.getMessage();
             log.error(errorMsg, e);
@@ -230,9 +228,12 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
         List<String> ldapUsers = new ArrayList<>();
         String userNameAttribute = realmConfig.getUserStoreProperty(LDAPConstants.USER_NAME_ATTRIBUTE);
         try {
-            ldapContext.setRequestControls(new Control[]{new PagedResultsControl(pageSize, Control.CRITICAL),
-                    new SortControl(userNameAttribute, Control.NONCRITICAL)});
-            users = performLDAPSearch(ldapContext, ldapSearchSpecification, orgSearchBase, pageSize, offset, expressionConditions);
+            ldapContext.setRequestControls(new Control[] {
+                    new PagedResultsControl(pageSize, Control.CRITICAL),
+                    new SortControl(userNameAttribute, Control.NONCRITICAL)
+            });
+            users = performLDAPSearch(ldapContext, ldapSearchSpecification, orgSearchBase, pageSize, offset,
+                    expressionConditions);
             for (String ldapUser : users) {
                 ldapUsers.add(UserCoreUtil.addDomainToName(ldapUser, getMyDomainName()));
             }
@@ -302,12 +303,14 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
     }
 
     protected void persistUser(String userID, String userName, Object credential, String[] roleList,
-                               Map<String, String> claims) throws UserStoreException {
+            Map<String, String> claims) throws UserStoreException {
 
-        String orgNameClaimUri = !StringUtils.isBlank(IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI))
-                ? IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI).trim() : ORGANIZATION_NAME_DEFAULT_CLAIM_URI;
-        String orgIdClaimUri = !StringUtils.isBlank(IdentityUtil.getProperty(ORGANIZATION_ID_CLAIM_URI))
-                ? IdentityUtil.getProperty(ORGANIZATION_ID_CLAIM_URI).trim() : ORGANIZATION_ID_DEFAULT_CLAIM_URI;
+        String orgNameClaimUri = !StringUtils.isBlank(IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI)) ?
+                IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI).trim() :
+                ORGANIZATION_NAME_DEFAULT_CLAIM_URI;
+        String orgIdClaimUri = !StringUtils.isBlank(IdentityUtil.getProperty(ORGANIZATION_ID_CLAIM_URI)) ?
+                IdentityUtil.getProperty(ORGANIZATION_ID_CLAIM_URI).trim() :
+                ORGANIZATION_ID_DEFAULT_CLAIM_URI;
 
         boolean nameAsIdentifier = false;
         String orgIdentifier;
@@ -332,7 +335,9 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
             OrganizationManager organizationService = CustomUserStoreDataHolder.getInstance().getOrganizationService();
             Organization organization;
             try {
-                orgIdentifier = nameAsIdentifier ? organizationService.getOrganizationIdByName(orgIdentifier) : orgIdentifier;
+                orgIdentifier = nameAsIdentifier ?
+                        organizationService.getOrganizationIdByName(orgIdentifier) :
+                        orgIdentifier;
                 organization = organizationService.getOrganization(orgIdentifier);
                 claims.put(orgNameClaimUri, organization.getName());
                 claims.put(orgIdClaimUri, organization.getId());
@@ -445,34 +450,34 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
             for (int i = 0; i < text.length(); i++) {
                 char currentChar = text.charAt(i);
                 switch (currentChar) {
-                    case '\\':
-                        if (text.charAt(i + 1) == '*') {
-                            sb.append("*");
-                            i++;
-                            break;
-                        }
-                        sb.append("\\\\");
+                case '\\':
+                    if (text.charAt(i + 1) == '*') {
+                        sb.append("*");
+                        i++;
                         break;
-                    case ',':
-                        sb.append("\\,");
-                        break;
-                    case '+':
-                        sb.append("\\+");
-                        break;
-                    case '"':
-                        sb.append("\\\"");
-                        break;
-                    case '<':
-                        sb.append("\\<");
-                        break;
-                    case '>':
-                        sb.append("\\>");
-                        break;
-                    case ';':
-                        sb.append("\\;");
-                        break;
-                    default:
-                        sb.append(currentChar);
+                    }
+                    sb.append("\\\\");
+                    break;
+                case ',':
+                    sb.append("\\,");
+                    break;
+                case '+':
+                    sb.append("\\+");
+                    break;
+                case '"':
+                    sb.append("\\\"");
+                    break;
+                case '<':
+                    sb.append("\\<");
+                    break;
+                case '>':
+                    sb.append("\\>");
+                    break;
+                case ';':
+                    sb.append("\\;");
+                    break;
+                default:
+                    sb.append(currentChar);
                 }
             }
             if ((text.length() > 1) && (text.charAt(text.length() - 1) == ' ')) {
@@ -499,8 +504,8 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
         int givenMax;
 
         try {
-            givenMax = Integer.parseInt(realmConfig.getUserStoreProperty(UserCoreConstants.RealmConfig
-                    .PROPERTY_MAX_USER_LIST));
+            givenMax = Integer
+                    .parseInt(realmConfig.getUserStoreProperty(UserCoreConstants.RealmConfig.PROPERTY_MAX_USER_LIST));
         } catch (Exception e) {
             givenMax = UserCoreConstants.MAX_USER_ROLE_LIST;
         }
@@ -539,8 +544,8 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
         }
     }
 
-    private List<String> performLDAPSearch(LdapContext ldapContext, LDAPSearchSpecification ldapSearchSpecification, String orgSearchBase,
-                                           int pageSize, int offset, List<ExpressionCondition> expressionConditions)
+    private List<String> performLDAPSearch(LdapContext ldapContext, LDAPSearchSpecification ldapSearchSpecification,
+            String orgSearchBase, int pageSize, int offset, List<ExpressionCondition> expressionConditions)
             throws UserStoreException {
 
         byte[] cookie;
@@ -550,7 +555,7 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
         boolean isClaimFiltering = ldapSearchSpecification.isClaimFiltering();
         boolean isMemberShipPropertyFound = ldapSearchSpecification.isMemberShipPropertyFound();
 
-        String[] searchBaseArray = {orgSearchBase};
+        String[] searchBaseArray = { orgSearchBase };
         // If not defined search in ROOT
         if (orgSearchBase == null) {
             String searchBases = ldapSearchSpecification.getSearchBases();
@@ -601,8 +606,10 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
                     }
                     cookie = parseControls(ldapContext.getResponseControls());
                     String userNameAttribute = realmConfig.getUserStoreProperty(LDAPConstants.USER_NAME_ATTRIBUTE);
-                    ldapContext.setRequestControls(new Control[]{new PagedResultsControl(pageSize, cookie,
-                            Control.CRITICAL), new SortControl(userNameAttribute, Control.NONCRITICAL)});
+                    ldapContext.setRequestControls(new Control[] {
+                            new PagedResultsControl(pageSize, cookie, Control.CRITICAL),
+                            new SortControl(userNameAttribute, Control.NONCRITICAL)
+                    });
                 } while ((cookie != null) && (cookie.length != 0));
             }
         } catch (PartialResultException e) {
@@ -616,8 +623,8 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
                 throw new UserStoreException(e.getMessage(), e);
             }
         } catch (NamingException e) {
-            log.error(String.format("Error occurred while searching for user(s) for filter: %s, %s",
-                    searchFilter, e.getMessage()));
+            log.error(String.format("Error occurred while searching for user(s) for filter: %s, %s", searchFilter,
+                    e.getMessage()));
             throw new UserStoreException(e.getMessage(), e);
         } catch (IOException e) {
             log.error(String.format("Error occurred while doing paginated search, %s", e.getMessage()));
@@ -629,7 +636,7 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
     }
 
     private List<String> getUserListFromSearch(boolean isGroupFiltering, List<String> returnedAttributes,
-               NamingEnumeration<SearchResult> answer, boolean isSingleAttributeFilter) throws UserStoreException {
+            NamingEnumeration<SearchResult> answer, boolean isSingleAttributeFilter) throws UserStoreException {
 
         List<String> tempUserList;
         if (isGroupFiltering) {
@@ -651,8 +658,7 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
     }
 
     private List<String> membershipGroupFilterPostProcessing(boolean isUsernameFiltering, boolean isClaimFiltering,
-                                                             List<ExpressionCondition> expressionConditions,
-                                                             List<String> tempUserList) throws UserStoreException {
+            List<ExpressionCondition> expressionConditions, List<String> tempUserList) throws UserStoreException {
 
         List<String> users;
         if (isUsernameFiltering) {
@@ -668,7 +674,7 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
     }
 
     private void generatePaginatedUserList(int pageIndex, int offset, int pageSize, List<String> tempUserList,
-                                           List<String> users) {
+            List<String> users) {
 
         int needMore;
         // Handle pagination depends on given offset, i.e. start index.
@@ -705,7 +711,7 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
     }
 
     private List<String> getUserListFromGroupFilterResult(NamingEnumeration<SearchResult> answer,
-                                                          List<String> returnedAttributes, boolean isSingleAttributeFilter) throws UserStoreException {
+            List<String> returnedAttributes, boolean isSingleAttributeFilter) throws UserStoreException {
 
         // Can be user DN list or username list
         List<String> userListFromSearch = new ArrayList<>();
@@ -770,7 +776,7 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
     }
 
     private List<String> getUserListFromNonGroupFilterResult(NamingEnumeration<SearchResult> answer,
-                                                     List<String> returnedAttributes) throws UserStoreException {
+            List<String> returnedAttributes) throws UserStoreException {
 
         List<String> finalUserList = new ArrayList<>();
         String userAttributeSeparator = ",";
@@ -813,8 +819,8 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
                     if (LDAPConstants.SERVER_PRINCIPAL_ATTRIBUTE_VALUE.equals(serviceNameAttributeValue)) {
                         continue;
                     }
-                    propertyValue = propertyValue.substring(0, propertyValue.length() -
-                            userAttributeSeparator.length());
+                    propertyValue = propertyValue
+                            .substring(0, propertyValue.length() - userAttributeSeparator.length());
                     finalUserList.add(propertyValue);
                 }
             }
@@ -829,7 +835,7 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
     }
 
     private List<String> getMatchUsersFromMemberList(List<ExpressionCondition> expressionConditions,
-                                                     List<String> userNames) {
+            List<String> userNames) {
         /*
         If group filtering and username filtering found, we need to get match users names only.
         'member' filtering retrieve all the members once the conditions matched because 'member' is a
@@ -855,7 +861,7 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
         DirContext dirContext = this.connectionSource.getContext();
         String userNameProperty = realmConfig.getUserStoreProperty(LDAPConstants.USER_NAME_ATTRIBUTE);
         String displayNameAttribute = realmConfig.getUserStoreProperty(LDAPConstants.DISPLAY_NAME_ATTRIBUTE);
-        String[] requiredAttributes = {userNameProperty, displayNameAttribute};
+        String[] requiredAttributes = { userNameProperty, displayNameAttribute };
 
         for (String user : userListFromSearch) {
             try {
@@ -875,8 +881,7 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
                         }
                     }
                 }
-                String domainName =
-                        realmConfig.getUserStoreProperty(PROPERTY_DOMAIN_NAME);
+                String domainName = realmConfig.getUserStoreProperty(PROPERTY_DOMAIN_NAME);
                 /* Username will be null in the special case where the username attribute has changed to another
                 and having different userNameProperty than the current user-mgt.xml. */
                 if (userName != null) {
@@ -890,8 +895,8 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
                     }
                 }
             } catch (NamingException e) {
-                log.error(String.format("Error in reading user information in the user store for the user %s, %s",
-                        user, e.getMessage()));
+                log.error(String.format("Error in reading user information in the user store for the user %s, %s", user,
+                        e.getMessage()));
                 throw new UserStoreException(e.getMessage(), e);
             }
         }
@@ -899,7 +904,7 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
     }
 
     private List<String> getUserListFromClaimFiltering(List<ExpressionCondition> expressionConditions,
-                                                       List<String> tempUserList) throws UserStoreException {
+            List<String> tempUserList) throws UserStoreException {
 
         List<String> claimSearchUserList = new ArrayList<>();
         List<ExpressionCondition> derivedConditionList = expressionConditions;
@@ -907,8 +912,7 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
 
         while (iterator.hasNext()) {
             ExpressionCondition expressionCondition = iterator.next();
-            if (ExpressionAttribute.ROLE.toString().equals(
-                    expressionCondition.getAttributeName())) {
+            if (ExpressionAttribute.ROLE.toString().equals(expressionCondition.getAttributeName())) {
                 iterator.remove();
             }
         }
@@ -919,8 +923,8 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
         NamingEnumeration<SearchResult> tempAnswer = null;
 
         try {
-            tempAnswer = claimSearchDirContext.search(claimSearch.getSearchBases(),
-                    claimSearch.getSearchFilterQuery(), claimSearchControls);
+            tempAnswer = claimSearchDirContext
+                    .search(claimSearch.getSearchBases(), claimSearch.getSearchFilterQuery(), claimSearchControls);
             if (tempAnswer.hasMore()) {
                 claimSearchUserList = getUserListFromNonGroupFilterResult(tempAnswer,
                         Arrays.asList(claimSearchControls.getReturningAttributes()));
@@ -942,17 +946,17 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
         List<String> newUserNameList = new ArrayList<>();
 
         for (String user : users) {
-            if (ExpressionOperation.SW.toString().equals(expressionCondition.getOperation())
-                    && user.startsWith(expressionCondition.getAttributeValue()) && !newUserNameList.contains(user)) {
+            if (ExpressionOperation.SW.toString().equals(expressionCondition.getOperation()) && user
+                    .startsWith(expressionCondition.getAttributeValue()) && !newUserNameList.contains(user)) {
                 newUserNameList.add(user);
-            } else if (ExpressionOperation.EQ.toString().equals(expressionCondition.getOperation())
-                    && user.equals(expressionCondition.getAttributeValue()) && !newUserNameList.contains(user)) {
+            } else if (ExpressionOperation.EQ.toString().equals(expressionCondition.getOperation()) && user
+                    .equals(expressionCondition.getAttributeValue()) && !newUserNameList.contains(user)) {
                 newUserNameList.add(user);
-            } else if (ExpressionOperation.CO.toString().equals(expressionCondition.getOperation())
-                    && user.contains(expressionCondition.getAttributeValue()) && !newUserNameList.contains(user)) {
+            } else if (ExpressionOperation.CO.toString().equals(expressionCondition.getOperation()) && user
+                    .contains(expressionCondition.getAttributeValue()) && !newUserNameList.contains(user)) {
                 newUserNameList.add(user);
-            } else if (ExpressionOperation.EW.toString().equals(expressionCondition.getOperation())
-                    && user.endsWith(expressionCondition.getAttributeValue()) && !newUserNameList.contains(user)) {
+            } else if (ExpressionOperation.EW.toString().equals(expressionCondition.getOperation()) && user
+                    .endsWith(expressionCondition.getAttributeValue()) && !newUserNameList.contains(user)) {
                 newUserNameList.add(user);
             }
         }
@@ -977,25 +981,25 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
             for (int i = 0; i < dnPartial.length(); i++) {
                 char currentChar = dnPartial.charAt(i);
                 switch (currentChar) {
-                    case '\\':
-                        if (dnPartial.charAt(i + 1) == '*') {
-                            sb.append("\\2a");
-                            i++;
-                            break;
-                        }
-                        sb.append("\\5c");
+                case '\\':
+                    if (dnPartial.charAt(i + 1) == '*') {
+                        sb.append("\\2a");
+                        i++;
                         break;
-                    case '(':
-                        sb.append("\\28");
-                        break;
-                    case ')':
-                        sb.append("\\29");
-                        break;
-                    case '\u0000':
-                        sb.append("\\00");
-                        break;
-                    default:
-                        sb.append(currentChar);
+                    }
+                    sb.append("\\5c");
+                    break;
+                case '(':
+                    sb.append("\\28");
+                    break;
+                case ')':
+                    sb.append("\\29");
+                    break;
+                case '\u0000':
+                    sb.append("\\00");
+                    break;
+                default:
+                    sb.append(currentChar);
                 }
             }
             return sb.toString();

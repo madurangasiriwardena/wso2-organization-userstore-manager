@@ -35,14 +35,11 @@ import org.wso2.carbon.user.core.service.RealmService;
 /**
  * OSGI service component for the custom user store manager bundle.
  */
-@Component(
-        name = "custom.userstore.manager",
-        immediate = true
-)
+@Component(name = "custom.userstore.manager",
+           immediate = true)
 public class CustomUserStoreManagerServiceComponent {
 
     private static final Log log = LogFactory.getLog(CustomUserStoreManagerServiceComponent.class);
-
 
     /**
      * Register custom user store manager service in the OSGI context.
@@ -54,8 +51,7 @@ public class CustomUserStoreManagerServiceComponent {
 
         try {
             BundleContext bundleContext = componentContext.getBundleContext();
-            bundleContext.registerService(UserStoreManager.class.getName(),
-                    new CustomUserStoreManager(), null);
+            bundleContext.registerService(UserStoreManager.class.getName(), new CustomUserStoreManager(), null);
             if (log.isDebugEnabled()) {
                 log.debug("Custom user store manager component activated successfully.");
             }
@@ -64,12 +60,11 @@ public class CustomUserStoreManagerServiceComponent {
         }
     }
 
-    @Reference(
-            name = "realm.service",
-            service = org.wso2.carbon.user.core.service.RealmService.class,
-            cardinality = ReferenceCardinality.MANDATORY,
-            policy = ReferencePolicy.DYNAMIC,
-            unbind = "unsetRealmService")
+    @Reference(name = "realm.service",
+               service = org.wso2.carbon.user.core.service.RealmService.class,
+               cardinality = ReferenceCardinality.MANDATORY,
+               policy = ReferencePolicy.DYNAMIC,
+               unbind = "unsetRealmService")
     protected void setRealmService(RealmService realmService) {
 
         if (log.isDebugEnabled()) {
@@ -86,12 +81,11 @@ public class CustomUserStoreManagerServiceComponent {
         CustomUserStoreDataHolder.getInstance().setRealmService(null);
     }
 
-    @Reference(
-            name = "carbon.organization.mgt.component",
-            service = org.wso2.carbon.identity.organization.mgt.core.OrganizationManager.class,
-            cardinality = ReferenceCardinality.MANDATORY,
-            policy = ReferencePolicy.DYNAMIC,
-            unbind = "unsetOrganizationMgtService")
+    @Reference(name = "carbon.organization.mgt.component",
+               service = org.wso2.carbon.identity.organization.mgt.core.OrganizationManager.class,
+               cardinality = ReferenceCardinality.MANDATORY,
+               policy = ReferencePolicy.DYNAMIC,
+               unbind = "unsetOrganizationMgtService")
     protected void setOrganizationMgtService(OrganizationManager organizationService) {
 
         if (log.isDebugEnabled()) {
