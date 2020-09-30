@@ -42,4 +42,6 @@ public class Constants {
     public static final String ORGANIZATION_NAME_DEFAULT_CLAIM_URI = "http://wso2.org/claims/organization";
     public static final String ORGANIZATION_ID_DEFAULT_CLAIM_URI = "http://wso2.org/claims/organizationId";
     public static final String ROOT_ORG_NAME = "ROOT";
+
+    public static final String ORGANIZATION_USER_CREATE_PERMISSION = "/permission/admin/manage/identity/usermgt/create";
 }

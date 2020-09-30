@@ -27,16 +27,16 @@ import org.wso2.carbon.custom.userstore.manager.internal.CustomUserStoreDataHold
 import org.wso2.carbon.identity.organization.mgt.core.OrganizationManager;
 import org.wso2.carbon.identity.organization.mgt.core.exception.OrganizationManagementClientException;
 import org.wso2.carbon.identity.organization.mgt.core.exception.OrganizationManagementException;
-import org.wso2.carbon.identity.organization.mgt.core.exception.OrganizationManagementServerException;
 import org.wso2.carbon.identity.organization.mgt.core.model.Organization;
-import org.wso2.carbon.identity.organization.mgt.core.model.UserStoreConfig;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
 
 import static org.wso2.carbon.custom.userstore.manager.Constants.ORGANIZATION_ID_CLAIM_URI;
 import static org.wso2.carbon.custom.userstore.manager.Constants.ORGANIZATION_ID_DEFAULT_CLAIM_URI;
 import static org.wso2.carbon.custom.userstore.manager.Constants.ORGANIZATION_NAME_CLAIM_URI;
 import static org.wso2.carbon.custom.userstore.manager.Constants.ORGANIZATION_NAME_DEFAULT_CLAIM_URI;
+import static org.wso2.carbon.custom.userstore.manager.Constants.ORGANIZATION_USER_CREATE_PERMISSION;
 import static org.wso2.carbon.custom.userstore.manager.Constants.ROOT_ORG_NAME;
+import static org.wso2.carbon.custom.userstore.manager.util.Utils.isAuthorized;
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.DN;
 import static org.wso2.carbon.user.core.UserCoreConstants.RealmConfig.PROPERTY_DOMAIN_NAME;
 
@@ -330,6 +330,10 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
             }
             claims.put(orgNameClaimUri, ROOT_ORG_NAME);
             claims.put(orgIdClaimUri, ROOT_ORG_NAME);
+            // Authorize ROOT user creation request
+            if(!isAuthorized(claims.get(orgIdClaimUri), ORGANIZATION_USER_CREATE_PERMISSION)) {
+                throw new UserStoreException("Not authorized");
+            }
             dirContext = super.getSearchBaseDirectoryContext();
         } else {
             OrganizationManager organizationService = CustomUserStoreDataHolder.getInstance().getOrganizationService();
@@ -351,6 +355,10 @@ public class CustomUserStoreManager extends UniqueIDReadWriteLDAPUserStoreManage
                 String errorMsg = "Error while obtaining organization Id : " + e.getMessage();
                 log.error(errorMsg, e);
                 throw new UserStoreException(errorMsg, e);
+            }
+            // Authorize user creation request
+            if(!isAuthorized(claims.get(orgIdClaimUri), ORGANIZATION_USER_CREATE_PERMISSION)) {
+                throw new UserStoreException("Not authorized");
             }
             // Check if organization is active
             if (!Organization.OrgStatus.ACTIVE.equals(organization.getStatus())) {
