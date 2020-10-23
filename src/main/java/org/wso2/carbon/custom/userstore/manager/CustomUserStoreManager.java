@@ -575,7 +575,7 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
         String searchFilter = ldapSearchSpecification.getSearchFilterQuery();
         SearchControls searchControls = ldapSearchSpecification.getSearchControls();
         // Do not search in the sub trees
-        searchControls.setSearchScope(SearchControls.ONELEVEL_SCOPE);
+//        searchControls.setSearchScope(SearchControls.ONELEVEL_SCOPE);
         List<String> returnedAttributes = Arrays.asList(searchControls.getReturningAttributes());
         NamingEnumeration<SearchResult> answer = null;
         List<String> users = new ArrayList<>();
