@@ -186,6 +186,11 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
                 break;
             }
         }
+        // If organization is not defined in the request, assume root
+        if (orgIdentifier == null) {
+            orgIdentifier = ROOT_ORG_NAME;
+            nameAsIdentifier = true;
+        }
         // Resolve organization identifier
         OrganizationManager orgService = CustomUserStoreDataHolder.getInstance().getOrganizationService();
         try {
@@ -204,9 +209,7 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
         // Resolve user search base
         try {
             // Get user store configs by organization ID
-            // If 'orgIdentifier' is null, search will be done from the root level
-            orgSearchBase =
-                    orgIdentifier != null ? orgService.getUserStoreConfigs(orgIdentifier).get(DN).getValue() : null;
+            orgSearchBase = orgService.getUserStoreConfigs(orgIdentifier).get(DN).getValue();
         } catch (OrganizationManagementException e) {
             String errorMsg = "Error while obtaining organization metadata : " + e.getMessage();
             log.error(errorMsg, e);
@@ -305,6 +308,7 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
     protected void persistUser(String userID, String userName, Object credential, String[] roleList,
             Map<String, String> claims) throws UserStoreException {
 
+        OrganizationManager organizationService = CustomUserStoreDataHolder.getInstance().getOrganizationService();
         String orgNameClaimUri = !StringUtils.isBlank(IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI)) ?
                 IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI).trim() :
                 ORGANIZATION_NAME_DEFAULT_CLAIM_URI;
@@ -321,67 +325,52 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
             orgIdentifier = claims.get(orgIdClaimUri).trim();
         } else {
             // If org name or id is not defined in the request, user will be created under ROOT
+            nameAsIdentifier = true;
             orgIdentifier = ROOT_ORG_NAME;
         }
-        DirContext dirContext;
-        if (ROOT_ORG_NAME.equalsIgnoreCase(orgIdentifier)) {
+        Organization organization;
+        try {
+            orgIdentifier = nameAsIdentifier ?
+                    organizationService.getOrganizationIdByName(orgIdentifier) : orgIdentifier;
+            organization = organizationService.getOrganization(orgIdentifier);
+            claims.put(orgNameClaimUri, organization.getName());
+            claims.put(orgIdClaimUri, organization.getId());
+        } catch (OrganizationManagementClientException e) {
+            String errorMsg = "Failed resolving organization name : " + orgIdentifier + " to an organization id";
             if (log.isDebugEnabled()) {
-                log.debug("Organization identifier : " + ROOT_ORG_NAME);
+                log.debug(errorMsg, e);
             }
-            claims.put(orgNameClaimUri, ROOT_ORG_NAME);
-            claims.put(orgIdClaimUri, ROOT_ORG_NAME);
-            // Authorize ROOT user creation request
-            if(!isAuthorized(claims.get(orgIdClaimUri), ORGANIZATION_USER_CREATE_PERMISSION)) {
-                throw new UserStoreException("Not authorized");
-            }
-            dirContext = super.getSearchBaseDirectoryContext();
-        } else {
-            OrganizationManager organizationService = CustomUserStoreDataHolder.getInstance().getOrganizationService();
-            Organization organization;
-            try {
-                orgIdentifier = nameAsIdentifier ?
-                        organizationService.getOrganizationIdByName(orgIdentifier) :
-                        orgIdentifier;
-                organization = organizationService.getOrganization(orgIdentifier);
-                claims.put(orgNameClaimUri, organization.getName());
-                claims.put(orgIdClaimUri, organization.getId());
-            } catch (OrganizationManagementClientException e) {
-                String errorMsg = "Failed resolving organization name : " + orgIdentifier + " to an organization id";
-                if (log.isDebugEnabled()) {
-                    log.debug(errorMsg, e);
-                }
-                throw new UserStoreException(errorMsg, e);
-            } catch (OrganizationManagementException e) {
-                String errorMsg = "Error while obtaining organization Id : " + e.getMessage();
-                log.error(errorMsg, e);
-                throw new UserStoreException(errorMsg, e);
-            }
-            // Authorize user creation request
-            if(!isAuthorized(claims.get(orgIdClaimUri), ORGANIZATION_USER_CREATE_PERMISSION)) {
-                throw new UserStoreException("Not authorized");
-            }
-            // Check if organization is active
-            if (!Organization.OrgStatus.ACTIVE.equals(organization.getStatus())) {
-                String errorMsg = "Organization is not active : " + orgIdentifier;
-                if (log.isDebugEnabled()) {
-                    log.debug(errorMsg);
-                }
-                throw new UserStoreException(errorMsg);
-            }
-            String orgDn;
-            try {
-                // Get user store configs by organization ID
-                orgDn = organizationService.getUserStoreConfigs(orgIdentifier).get(DN).getValue();
-            } catch (OrganizationManagementException e) {
-                String errorMsg = "Error while obtaining organization metadata : " + e.getMessage();
-                log.error(errorMsg, e);
-                throw new UserStoreException(errorMsg, e);
-            }
-            if (log.isDebugEnabled()) {
-                log.debug("Organization id : " + orgIdentifier + ", DN : " + orgDn);
-            }
-            dirContext = getOrganizationDirectoryContext(orgDn);
+            throw new UserStoreException(errorMsg, e);
+        } catch (OrganizationManagementException e) {
+            String errorMsg = "Error while obtaining organization Id : " + e.getMessage();
+            log.error(errorMsg, e);
+            throw new UserStoreException(errorMsg, e);
         }
+        // Authorize user creation request
+        if (!isAuthorized(claims.get(orgIdClaimUri), ORGANIZATION_USER_CREATE_PERMISSION)) {
+            throw new UserStoreException("Not authorized");
+        }
+        // Check if organization is active
+        if (!Organization.OrgStatus.ACTIVE.equals(organization.getStatus())) {
+            String errorMsg = "Organization is not active : " + orgIdentifier;
+            if (log.isDebugEnabled()) {
+                log.debug(errorMsg);
+            }
+            throw new UserStoreException(errorMsg);
+        }
+        String orgDn;
+        try {
+            // Get user store configs by organization ID
+            orgDn = organizationService.getUserStoreConfigs(orgIdentifier).get(DN).getValue();
+        } catch (OrganizationManagementException e) {
+            String errorMsg = "Error while obtaining organization metadata : " + e.getMessage();
+            log.error(errorMsg, e);
+            throw new UserStoreException(errorMsg, e);
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("Organization id : " + orgIdentifier + ", DN : " + orgDn);
+        }
+        DirContext dirContext = getOrganizationDirectoryContext(orgDn);
 
         /* getting add user basic attributes */
         BasicAttributes basicAttributes = getAddUserBasicAttributes(userName);
@@ -564,11 +553,6 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
         boolean isMemberShipPropertyFound = ldapSearchSpecification.isMemberShipPropertyFound();
 
         String[] searchBaseArray = { orgSearchBase };
-        // If not defined search in ROOT
-        if (orgSearchBase == null) {
-            String searchBases = ldapSearchSpecification.getSearchBases();
-            searchBaseArray = searchBases.split("#");
-        }
         if (log.isDebugEnabled()) {
             log.debug("Searching in the subdirectory : " + Arrays.toString(searchBaseArray));
         }

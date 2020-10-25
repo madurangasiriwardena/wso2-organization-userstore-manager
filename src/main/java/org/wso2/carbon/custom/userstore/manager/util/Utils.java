@@ -25,12 +25,8 @@ import org.wso2.carbon.custom.userstore.manager.internal.CustomUserStoreDataHold
 import org.wso2.carbon.identity.organization.mgt.core.dao.OrganizationAuthorizationDao;
 import org.wso2.carbon.identity.organization.mgt.core.dao.OrganizationAuthorizationDaoImpl;
 import org.wso2.carbon.identity.organization.mgt.core.exception.OrganizationManagementException;
-import org.wso2.carbon.user.api.AuthorizationManager;
 import org.wso2.carbon.user.api.UserStoreException;
 import org.wso2.carbon.user.core.common.AbstractUserStoreManager;
-
-import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.ROOT;
-import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.UI_EXECUTE;
 
 public class Utils {
 
@@ -39,31 +35,16 @@ public class Utils {
     public static boolean isAuthorized(String organizationId, String permission)
             throws org.wso2.carbon.user.core.UserStoreException {
 
-        if (ROOT.equals(organizationId)) {
-            // check using the authorization manager
-            // To create users in the ROOT level, you should have '/permission/admin/manage/identity/usermgt/create'
-            // permission at least in one of the roles that you are bearing.
-            try {
-                AuthorizationManager authorizationManager = CustomUserStoreDataHolder.getInstance().
-                        getRealmService().getTenantUserRealm(getTenantId()).getAuthorizationManager();
-                return authorizationManager.isUserAuthorized(getAuthenticatedUsername(), permission, UI_EXECUTE);
-            } catch (UserStoreException e) {
-                String errorMsg = "Error while authorizing the action : permission : " + permission;
-                log.error(errorMsg);
-                throw new org.wso2.carbon.user.core.UserStoreException(errorMsg, e);
-            }
-        } else {
-            // To create a user inside an organization
-            // you should have '/permission/admin/organizations/create' over the subject organization
-            OrganizationAuthorizationDao authorizationDao = new OrganizationAuthorizationDaoImpl();
-            try {
-                return authorizationDao.isUserAuthorized(getAuthenticatedUserId(), organizationId, permission);
-            } catch (OrganizationManagementException | UserStoreException e) {
-                String errorMsg =
-                        "Error while authorizing the action : " + permission + ", organization id : " + organizationId;
-                log.error(errorMsg, e);
-                throw new org.wso2.carbon.user.core.UserStoreException(errorMsg, e);
-            }
+        // To create a user inside an organization
+        // you should have '/permission/admin/organizations/create' over the subject organization
+        OrganizationAuthorizationDao authorizationDao = new OrganizationAuthorizationDaoImpl();
+        try {
+            return authorizationDao.isUserAuthorized(getAuthenticatedUserId(), organizationId, permission);
+        } catch (OrganizationManagementException | UserStoreException e) {
+            String errorMsg =
+                    "Error while authorizing the action : " + permission + ", organization id : " + organizationId;
+            log.error(errorMsg, e);
+            throw new org.wso2.carbon.user.core.UserStoreException(errorMsg, e);
         }
     }
 
