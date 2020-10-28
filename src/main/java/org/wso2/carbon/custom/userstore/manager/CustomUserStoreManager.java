@@ -332,7 +332,7 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
         try {
             orgIdentifier = nameAsIdentifier ?
                     organizationService.getOrganizationIdByName(orgIdentifier) : orgIdentifier;
-            organization = organizationService.getOrganization(orgIdentifier);
+            organization = organizationService.getOrganization(orgIdentifier, false);
             claims.put(orgNameClaimUri, organization.getName());
             claims.put(orgIdClaimUri, organization.getId());
         } catch (OrganizationManagementClientException e) {
