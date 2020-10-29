@@ -114,6 +114,10 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
 
         String userID = getUniqueUserID();
         persistUser(userID, userName, credential, roleList, claims);
+        if (isUserIdGeneratedByUserStore(userName, claims)) {
+            //If the userId attribute is immutable then we need to retrieve the userId from the user store.
+            return getUser(null, userName);
+        }
         return getUser(userID, userName);
     }
 
