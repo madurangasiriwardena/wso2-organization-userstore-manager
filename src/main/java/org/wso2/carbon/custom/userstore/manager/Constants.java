@@ -27,7 +27,6 @@ public class Constants {
      *     <OrganizationMgt>
      *             <OrgNameClaimUri>{{organization.mgt.org_name_claim_uri}}</OrgNameClaimUri>
      *             <OrgIdClaimUri>{{organization.mgt.org_id_claim_uri}}</OrgIdClaimUri>
-     *             <AttributeValidatorClass>{{organization.mgt.attribute_validator_class}}</AttributeValidatorClass>
      *     </OrganizationMgt>
      *
      *  <IS_HOME>>/repository/conf/deployment.toml
@@ -35,7 +34,6 @@ public class Constants {
      *      [organization.mgt]
      *      org_name_claim_uri = "http://wso2.org/claims/organizationName"
      *      org_id_claim_uri = "http://wso2.org/claims/organizationId"
-     *      attribute_validator_class = "org.wso2.carbon.identity.organization.mgt.core.validator.AttributeValidatorImpl"
      */
     public static final String ORGANIZATION_NAME_CLAIM_URI = "OrganizationMgt.OrgNameClaimUri";
     public static final String ORGANIZATION_ID_CLAIM_URI = "OrganizationMgt.OrgIdClaimUri";

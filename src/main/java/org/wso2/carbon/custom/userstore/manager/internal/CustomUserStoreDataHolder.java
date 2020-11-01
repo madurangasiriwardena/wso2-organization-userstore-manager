@@ -19,6 +19,7 @@
 package org.wso2.carbon.custom.userstore.manager.internal;
 
 import org.wso2.carbon.identity.organization.mgt.core.OrganizationManager;
+import org.wso2.carbon.identity.organization.mgt.core.dao.OrganizationAuthorizationDao;
 import org.wso2.carbon.user.core.service.RealmService;
 
 public class CustomUserStoreDataHolder {
@@ -26,6 +27,15 @@ public class CustomUserStoreDataHolder {
     private static CustomUserStoreDataHolder dataHolder = new CustomUserStoreDataHolder();
     private RealmService realmService;
     private OrganizationManager organizationService;
+    private OrganizationAuthorizationDao organizationAuthDao;
+
+    public OrganizationAuthorizationDao getOrganizationAuthDao() {
+        return organizationAuthDao;
+    }
+
+    public void setOrganizationAuthDao(OrganizationAuthorizationDao organizationAuthDao) {
+        this.organizationAuthDao = organizationAuthDao;
+    }
 
     public static CustomUserStoreDataHolder getInstance() {
 

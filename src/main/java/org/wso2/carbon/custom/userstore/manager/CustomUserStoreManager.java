@@ -26,15 +26,18 @@ import org.wso2.carbon.context.PrivilegedCarbonContext;
 import org.wso2.carbon.custom.userstore.manager.internal.CustomUserStoreDataHolder;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
 import org.wso2.carbon.identity.organization.mgt.core.OrganizationManager;
+import org.wso2.carbon.identity.organization.mgt.core.dao.OrganizationAuthorizationDao;
 import org.wso2.carbon.identity.organization.mgt.core.exception.OrganizationManagementClientException;
 import org.wso2.carbon.identity.organization.mgt.core.exception.OrganizationManagementException;
 import org.wso2.carbon.identity.organization.mgt.core.model.Organization;
+import org.wso2.carbon.identity.organization.mgt.core.model.UserStoreConfig;
 import org.wso2.carbon.identity.organization.mgt.core.usermgt.AbstractOrganizationMgtUserStoreManager;
 import org.wso2.carbon.user.api.RealmConfiguration;
 import org.wso2.carbon.user.core.UserCoreConstants;
 import org.wso2.carbon.user.core.UserRealm;
 import org.wso2.carbon.user.core.UserStoreException;
 import org.wso2.carbon.user.core.claim.ClaimManager;
+import org.wso2.carbon.user.core.common.AbstractUserStoreManager;
 import org.wso2.carbon.user.core.common.PaginatedSearchResult;
 import org.wso2.carbon.user.core.common.UniqueIDPaginatedSearchResult;
 import org.wso2.carbon.user.core.common.User;
@@ -81,8 +84,8 @@ import static org.wso2.carbon.custom.userstore.manager.Constants.ORGANIZATION_NA
 import static org.wso2.carbon.custom.userstore.manager.Constants.ORGANIZATION_NAME_DEFAULT_CLAIM_URI;
 import static org.wso2.carbon.custom.userstore.manager.Constants.ORGANIZATION_USER_CREATE_PERMISSION;
 import static org.wso2.carbon.custom.userstore.manager.Constants.ROOT_ORG_NAME;
-import static org.wso2.carbon.custom.userstore.manager.util.Utils.isAuthorized;
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.DN;
+import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.USER_MGT_CREATE_PERMISSION;
 import static org.wso2.carbon.user.core.UserCoreConstants.RealmConfig.PROPERTY_DOMAIN_NAME;
 
 public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreManager {
@@ -143,7 +146,7 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
             String sortBy, String sortOrder) throws UserStoreException {
 
         PaginatedSearchResult result = new PaginatedSearchResult();
-        // Since we support only AND operation get expressions as a list.
+        // Since we support only 'AND' operation, can get expressions as a list.
         List<ExpressionCondition> expressionConditions = getExpressionConditions(condition);
         // Get organization id and organization name claim URIs
         String orgNameClaimUri = !StringUtils.isBlank(IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI)) ?
@@ -256,6 +259,127 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
         } finally {
             JNDIUtil.closeContext(dirContext);
             JNDIUtil.closeContext(ldapContext);
+        }
+    }
+
+    @Override
+    protected void doSetUserAttributesWithID(String userID, Map<String, String> processedClaimAttributes,
+            String profileName) throws UserStoreException {
+
+        // Get organization id and organization name claim URIs
+        String orgNameClaimUri = !StringUtils.isBlank(IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI)) ?
+                IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI).trim() :
+                ORGANIZATION_NAME_DEFAULT_CLAIM_URI;
+        String orgIdClaimUri = !StringUtils.isBlank(IdentityUtil.getProperty(ORGANIZATION_ID_CLAIM_URI)) ?
+                IdentityUtil.getProperty(ORGANIZATION_ID_CLAIM_URI).trim() :
+                ORGANIZATION_ID_DEFAULT_CLAIM_URI;
+        // Find respective attribute names
+        String orgNameAttribute, orgIdAttribute;
+        try {
+            int tenantId = PrivilegedCarbonContext.getThreadLocalCarbonContext().getTenantId();
+            org.wso2.carbon.user.api.UserRealm tenantUserRealm = CustomUserStoreDataHolder.getInstance()
+                    .getRealmService().getTenantUserRealm(tenantId);
+            org.wso2.carbon.user.api.ClaimManager claimManager = tenantUserRealm.getClaimManager();
+            orgNameAttribute = claimManager
+                    .getAttributeName(this.realmConfig.getUserStoreProperty(PROPERTY_DOMAIN_NAME), orgNameClaimUri);
+            orgIdAttribute = claimManager
+                    .getAttributeName(this.realmConfig.getUserStoreProperty(PROPERTY_DOMAIN_NAME), orgIdClaimUri);
+        } catch (org.wso2.carbon.user.api.UserStoreException e) {
+            String errorMsg = "Error obtaining organization claim/attribute mappings : " + e.getMessage();
+            log.error(errorMsg);
+            throw new UserStoreException(errorMsg, e);
+        }
+        // Check if patching organization name or organization id
+        boolean patchById = processedClaimAttributes != null && processedClaimAttributes.containsKey(orgIdAttribute);
+        boolean patchByName = processedClaimAttributes != null
+                && processedClaimAttributes.containsKey(orgNameAttribute);
+        if (!(patchById || patchByName)) {
+            // Not an organization id/name attribute patching
+            super.doSetUserAttributesWithID(userID, processedClaimAttributes, profileName);
+            return;
+        }
+        // TODO check if both id and name sent in request.
+        String orgIdentifier = patchById ? processedClaimAttributes.get(orgIdAttribute) :
+                processedClaimAttributes.get(orgNameAttribute);
+        orgIdentifier = StringUtils.trim(orgIdentifier);
+        String orgId, orgName;
+        OrganizationManager organizationManager = CustomUserStoreDataHolder.getInstance().getOrganizationService();
+        Organization organization;
+        try {
+            // Get organization id
+            orgId = patchByName ? organizationManager.getOrganizationIdByName(orgIdentifier) : orgIdentifier;
+            organization = organizationManager.getOrganization(orgId, false);
+        } catch (OrganizationManagementException e) {
+            throw new UserStoreException("Error while obtaining organization details.", e);
+        }
+        // Permission check for the new organization
+        if (!isAuthorized(organization.getId(), USER_MGT_CREATE_PERMISSION)) {
+            throw new UserStoreException("Forbidden organization : " + organization.getId());
+        }
+        // Set user claims to be patched
+        orgName = patchById ? organization.getName() : orgIdentifier;
+        processedClaimAttributes.put(orgIdAttribute, orgId);
+        processedClaimAttributes.put(orgNameAttribute, orgName);
+        try {
+            Map<String, UserStoreConfig> userStoreConfigs = organizationManager.getUserStoreConfigs(orgId);
+            // DN is mandatory for organization. Hence cannot be null.
+            String newUserDn = userStoreConfigs.get(DN).getValue();
+            // Patch organization attributes of the user
+            super.doSetUserAttributesWithID(userID, processedClaimAttributes, profileName);
+            // Move user to a different OU
+            moveUser(userID, newUserDn);
+        } catch (OrganizationManagementException e) {
+            throw new UserStoreException("Error while moving the LDAP entry. user id : " + userID);
+        }
+    }
+
+    private void moveUser(String userID, String newDn) throws UserStoreException {
+
+        // Get the LDAP Directory context.
+        DirContext dirContext = this.connectionSource.getContext();
+        // Search the relevant user entry by user name.
+        String userSearchBase = realmConfig.getUserStoreProperty(LDAPConstants.USER_SEARCH_BASE);
+        String userSearchFilter = realmConfig.getUserStoreProperty(LDAPConstants.USER_ID_SEARCH_FILTER);
+        String userIDAttribute = realmConfig.getUserStoreProperty(LDAPConstants.USER_ID_ATTRIBUTE);
+
+        userSearchFilter = userSearchFilter.replace(LDAPConstants.UID, userIDAttribute);
+
+        if (OBJECT_GUID.equalsIgnoreCase(userIDAttribute) && isBinaryUserAttribute(userIDAttribute)) {
+            userID = transformUUIDToObjectGUID(userID);
+            userSearchFilter = userSearchFilter.replace("?", userID);
+        } else {
+            userSearchFilter = userSearchFilter.replace("?", escapeSpecialCharactersForFilter(userID));
+        }
+
+        SearchControls searchControls = new SearchControls();
+        searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
+        searchControls.setReturningAttributes(null);
+
+        NamingEnumeration<SearchResult> returnedResultList = null;
+        try {
+            returnedResultList = dirContext.search(escapeDNForSearch(userSearchBase), userSearchFilter, searchControls);
+            String oldDn = null;
+            String prefix;
+            // Assume only one user is returned from the search.
+            if (returnedResultList.hasMore()) {
+                oldDn = returnedResultList.next().getNameInNamespace();
+                prefix = StringUtils.contains(oldDn, ',') ? oldDn.substring( 0, oldDn.indexOf(",")) : null;
+                newDn = prefix != null ? prefix.concat(",").concat(newDn) : null;
+            }
+            if (newDn != null || oldDn != null) {
+                dirContext.rename(newDn, oldDn);
+            } else {
+                throw new UserStoreException("Couldn't resolve new or old DN. newDn : " + newDn + ", oldDn : " + oldDn);
+            }
+        } catch (NamingException | UserStoreException e) {
+            String errorMessage = "Error while moving the user organization. User ID : " + userID;
+            if (log.isDebugEnabled()) {
+                log.debug(errorMessage, e);
+            }
+            throw new UserStoreException(errorMessage, e);
+        }
+        finally {
+            JNDIUtil.closeNamingEnumeration(returnedResultList);
         }
     }
 
@@ -1020,5 +1144,99 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
             return false;
         }
         return property.equals(attribute) || property.equals(attribute.substring(0, attribute.indexOf(";")));
+    }
+
+    private String getAuthenticatedUserId() throws org.wso2.carbon.user.api.UserStoreException {
+
+        return getUserIDFromUserName(getAuthenticatedUsername(), getTenantId());
+    }
+
+    private String getAuthenticatedUsername() {
+
+        return PrivilegedCarbonContext.getThreadLocalCarbonContext().getUsername();
+    }
+
+    private String getUserIDFromUserName(String username, int tenantId) throws
+            org.wso2.carbon.user.api.UserStoreException {
+
+        try {
+            AbstractUserStoreManager userStoreManager = (AbstractUserStoreManager) CustomUserStoreDataHolder
+                    .getInstance().getRealmService().getTenantUserRealm(tenantId).getUserStoreManager();
+            return userStoreManager.getUserIDFromUserName(username);
+        } catch (org.wso2.carbon.user.api.UserStoreException e) {
+            String errorMsg = "Error obtaining ID for the username : " + username + ", tenant id : " + tenantId;
+            throw new org.wso2.carbon.user.api.UserStoreException(errorMsg, e);
+        }
+    }
+
+//    private int getTenantId() {
+//
+//        return PrivilegedCarbonContext.getThreadLocalCarbonContext().getTenantId();
+//    }
+
+    private boolean isAuthorized(String organizationId, String permission)
+            throws org.wso2.carbon.user.core.UserStoreException {
+
+        // To create a user inside an organization
+        // you should have '/permission/admin/organizations/create' over the subject organization
+        OrganizationAuthorizationDao authorizationDao =
+                CustomUserStoreDataHolder.getInstance().getOrganizationAuthDao();
+        try {
+            return authorizationDao.isUserAuthorized(getAuthenticatedUserId(), organizationId, permission);
+        } catch (OrganizationManagementException | org.wso2.carbon.user.api.UserStoreException e) {
+            String errorMsg =
+                    "Error while authorizing the action : " + permission + ", organization id : " + organizationId;
+            log.error(errorMsg, e);
+            throw new org.wso2.carbon.user.core.UserStoreException(errorMsg, e);
+        }
+    }
+
+    /**
+     * Escaping ldap search filter special characters in a string
+     *
+     * @param dnPartial String to replace special characters
+     * @return
+     */
+    private String escapeSpecialCharactersForFilter(String dnPartial) {
+
+        boolean replaceEscapeCharacters = true;
+        dnPartial.replace("\\*", "*");
+        String replaceEscapeCharactersAtUserLoginString = realmConfig
+                .getUserStoreProperty(UserCoreConstants.RealmConfig.PROPERTY_REPLACE_ESCAPE_CHARACTERS_AT_USER_LOGIN);
+
+        if (replaceEscapeCharactersAtUserLoginString != null) {
+            replaceEscapeCharacters = Boolean.parseBoolean(replaceEscapeCharactersAtUserLoginString);
+            if (log.isDebugEnabled()) {
+                log.debug("Replace escape characters configured to: " + replaceEscapeCharactersAtUserLoginString);
+            }
+        }
+        if (replaceEscapeCharacters) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < dnPartial.length(); i++) {
+                char currentChar = dnPartial.charAt(i);
+                switch (currentChar) {
+                case '\\':
+                    sb.append("\\5c");
+                    break;
+                case '*':
+                    sb.append("\\2a");
+                    break;
+                case '(':
+                    sb.append("\\28");
+                    break;
+                case ')':
+                    sb.append("\\29");
+                    break;
+                case '\u0000':
+                    sb.append("\\00");
+                    break;
+                default:
+                    sb.append(currentChar);
+                }
+            }
+            return sb.toString();
+        } else {
+            return dnPartial;
+        }
     }
 }

@@ -29,6 +29,7 @@ import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 import org.wso2.carbon.custom.userstore.manager.CustomUserStoreManager;
 import org.wso2.carbon.identity.organization.mgt.core.OrganizationManager;
+import org.wso2.carbon.identity.organization.mgt.core.dao.OrganizationAuthorizationDaoImpl;
 import org.wso2.carbon.user.api.UserStoreManager;
 import org.wso2.carbon.user.core.service.RealmService;
 
@@ -92,6 +93,7 @@ public class CustomUserStoreManagerServiceComponent {
             log.debug("Setting the Organization Management Service");
         }
         CustomUserStoreDataHolder.getInstance().setOrganizationService(organizationService);
+        CustomUserStoreDataHolder.getInstance().setOrganizationAuthDao(new OrganizationAuthorizationDaoImpl());
     }
 
     protected void unsetOrganizationMgtService(OrganizationManager organizationService) {
