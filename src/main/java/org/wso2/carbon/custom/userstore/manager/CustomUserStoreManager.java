@@ -368,7 +368,19 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
                 newDn = prefix != null ? prefix.concat(",").concat(newDn) : null;
             }
             if (newDn != null || oldDn != null) {
-                dirContext.rename(newDn, oldDn);
+                // Get existing user attributes.
+                Attributes attributes = dirContext.getAttributes(oldDn);
+
+                // Create a new user entry in new ou using existing user attributes.
+                dirContext.createSubcontext(newDn, attributes);
+
+                // Delete old ou user entry.
+                dirContext.destroySubcontext(oldDn);
+
+                // Clear user cache
+                String username = (String) attributes.get(LDAPConstants.UID).get();
+                removeFromUserCache(username);
+
             } else {
                 throw new UserStoreException("Couldn't resolve new or old DN. newDn : " + newDn + ", oldDn : " + oldDn);
             }
