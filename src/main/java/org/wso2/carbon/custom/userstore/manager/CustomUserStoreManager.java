@@ -243,7 +243,8 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
                     new PagedResultsControl(pageSize, Control.CRITICAL),
                     new SortControl(userNameAttribute, Control.NONCRITICAL)
             });
-            users = performLDAPSearch(ldapContext, ldapSearchSpecification, orgSearchBase, pageSize, offset,
+            users = performLDAPSearch(ldapContext, ldapSearchSpecification, orgSearchBase, orgIdAttribute, pageSize,
+                    offset,
                     expressionConditions);
             for (String ldapUser : users) {
                 ldapUsers.add(UserCoreUtil.addDomainToName(ldapUser, getMyDomainName()));
@@ -431,7 +432,8 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
     }
 
     private List<String> performLDAPSearch(LdapContext ldapContext, LDAPSearchSpecification ldapSearchSpecification,
-            String orgSearchBase, int pageSize, int offset, List<ExpressionCondition> expressionConditions)
+            String orgSearchBase, String orgIdAttribute, int pageSize, int offset,
+            List<ExpressionCondition> expressionConditions)
             throws UserStoreException {
 
         byte[] cookie;
@@ -452,7 +454,7 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
             searchBaseArray = new String[] { orgSearchBase };
         } else {
             // Alter the search filter to include authorized org IDs as search conditions
-            searchFilter = getAuthorizedSearchFilter(searchFilter);
+            searchFilter = getAuthorizedSearchFilter(searchFilter, orgIdAttribute);
             // Use the default search base (Search will NOT be limited to one level)
             searchBaseArray = ldapSearchSpecification.getSearchBases().split("#");
         }
@@ -1264,7 +1266,7 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
         }
     }
 
-    private String getAuthorizedSearchFilter(String searchFilter) throws UserStoreException {
+    private String getAuthorizedSearchFilter(String searchFilter, String orgIdAttribute) throws UserStoreException {
 
         OrganizationAuthorizationDao authorizationDao =
                 CustomUserStoreDataHolder.getInstance().getOrganizationAuthDao();
@@ -1285,12 +1287,12 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
             log.debug("Initial search filter : " + searchFilter);
         }
         // TODO must check if the user has permissions for at least one org before hand.
-        StringJoiner joiner = new StringJoiner("","(", ")");
-        orgList.forEach(org -> joiner.add(org));
+        StringJoiner joiner = new StringJoiner(")(","(", ")");
+        orgList.forEach(org -> joiner.add(orgIdAttribute + "=" + org));
         String orgFilter = "(|#)".replace("#", joiner.toString());
-        searchFilter.length();
         // Initial filter : (&(objectClass=person)(homeEmail=nipunt@wso2.com))
-        // orgFilter : (|(org=89651ae3-83fd-43eb-8fd4-7528ef69e3bd)(org=bc26d67e-a6e1-4c16-800e-9594c08cccf5))
+        // org filter :
+        // (|(organization=89651ae3-83fd-43eb-8fd4-7528ef69e3bd)(organization=bc26d67e-a6e1-4c16-800e-9594c08cccf5))
         // Final search filter :
         // (&(objectClass=person)(homeEmail=nipunt@wso2.com)(|(organization=89651ae3-83fd-43eb-8fd4-7528ef69e3bd)
         // (organization=bc26d67e-a6e1-4c16-800e-9594c08cccf5)))
