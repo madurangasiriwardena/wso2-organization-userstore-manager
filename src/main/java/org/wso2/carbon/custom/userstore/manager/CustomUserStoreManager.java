@@ -59,6 +59,7 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 
 import javax.naming.Name;
 import javax.naming.NameParser;
@@ -86,8 +87,10 @@ import static org.wso2.carbon.custom.userstore.manager.Constants.ORGANIZATION_US
 import static org.wso2.carbon.custom.userstore.manager.Constants.ROOT_ORG_NAME;
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.DN;
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.USER_MGT_CREATE_PERMISSION;
+import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.USER_MGT_LIST_PERMISSION;
 import static org.wso2.carbon.user.core.UserCoreConstants.RealmConfig.PROPERTY_DOMAIN_NAME;
 
+//TODO change class name
 public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreManager {
 
     private static final Log log = LogFactory.getLog(CustomUserStoreManager.class);
@@ -172,7 +175,7 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
             throw new UserStoreException(errorMsg, e);
         }
 
-        String orgSearchBase;
+        String orgSearchBase = null;
         boolean nameAsIdentifier = false;
         String orgIdentifier = null;
         // Find the organization DN (search base)
@@ -193,34 +196,32 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
                 break;
             }
         }
-        // If organization is not defined in the request, assume root
-        if (orgIdentifier == null) {
-            orgIdentifier = ROOT_ORG_NAME;
-            nameAsIdentifier = true;
-        }
-        // Resolve organization identifier
-        OrganizationManager orgService = CustomUserStoreDataHolder.getInstance().getOrganizationService();
-        try {
-            orgIdentifier = nameAsIdentifier ? orgService.getOrganizationIdByName(orgIdentifier) : orgIdentifier;
-        } catch (OrganizationManagementClientException e) {
-            String errorMsg = "Failed resolving organization name : " + orgIdentifier + " to an organization id";
-            if (log.isDebugEnabled()) {
-                log.debug(errorMsg, e);
+        // If organization is defined in the request, find the organization DN
+        if (orgIdentifier != null) {
+            // Resolve organization identifier
+            OrganizationManager orgService = CustomUserStoreDataHolder.getInstance().getOrganizationService();
+            try {
+                orgIdentifier = nameAsIdentifier ? orgService.getOrganizationIdByName(orgIdentifier) : orgIdentifier;
+            } catch (OrganizationManagementClientException e) {
+                String errorMsg = "Failed resolving organization name : " + orgIdentifier + " to an organization id";
+                if (log.isDebugEnabled()) {
+                    log.debug(errorMsg, e);
+                }
+                throw new UserStoreException(errorMsg, e);
+            } catch (OrganizationManagementException e) {
+                String errorMsg = "Error while obtaining organization Id : " + e.getMessage();
+                log.error(errorMsg, e);
+                throw new UserStoreException(errorMsg, e);
             }
-            throw new UserStoreException(errorMsg, e);
-        } catch (OrganizationManagementException e) {
-            String errorMsg = "Error while obtaining organization Id : " + e.getMessage();
-            log.error(errorMsg, e);
-            throw new UserStoreException(errorMsg, e);
-        }
-        // Resolve user search base
-        try {
-            // Get user store configs by organization ID
-            orgSearchBase = orgService.getUserStoreConfigs(orgIdentifier).get(DN).getValue();
-        } catch (OrganizationManagementException e) {
-            String errorMsg = "Error while obtaining organization metadata : " + e.getMessage();
-            log.error(errorMsg, e);
-            throw new UserStoreException(errorMsg, e);
+            // Resolve user search base
+            try {
+                // Get user store configs by organization ID
+                orgSearchBase = orgService.getUserStoreConfigs(orgIdentifier).get(DN).getValue();
+            } catch (OrganizationManagementException e) {
+                String errorMsg = "Error while obtaining organization metadata : " + e.getMessage();
+                log.error(errorMsg, e);
+                throw new UserStoreException(errorMsg, e);
+            }
         }
 
         LDAPSearchSpecification ldapSearchSpecification = new LDAPSearchSpecification(realmConfig,
@@ -415,6 +416,105 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
                 JNDIUtil.closeContext(dirContext);
             }
         }
+    }
+
+    private List<String> performLDAPSearch(LdapContext ldapContext, LDAPSearchSpecification ldapSearchSpecification,
+            String orgSearchBase, int pageSize, int offset, List<ExpressionCondition> expressionConditions)
+            throws UserStoreException {
+
+        byte[] cookie;
+        int pageIndex = -1;
+        boolean isGroupFiltering = ldapSearchSpecification.isGroupFiltering();
+        boolean isUsernameFiltering = ldapSearchSpecification.isUsernameFiltering();
+        boolean isClaimFiltering = ldapSearchSpecification.isClaimFiltering();
+        boolean isMemberShipPropertyFound = ldapSearchSpecification.isMemberShipPropertyFound();
+
+        String searchFilter = ldapSearchSpecification.getSearchFilterQuery();
+        SearchControls searchControls = ldapSearchSpecification.getSearchControls();
+        String[] searchBaseArray;
+        // If organization is defined in the request
+        if (orgSearchBase != null) {
+            // Do not search in the LDAP sub trees
+            searchControls.setSearchScope(SearchControls.ONELEVEL_SCOPE);
+            // Search in the organization's user search base (DN)
+            searchBaseArray = new String[] { orgSearchBase };
+        } else {
+            // Alter the search filter to include authorized org IDs as search conditions
+            searchFilter = getAuthorizedSearchFilter(searchFilter);
+            // Use the default search base (Search will NOT be limited to one level)
+            searchBaseArray = ldapSearchSpecification.getSearchBases().split("#");
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("Searching in the subdirectory : " + Arrays.toString(searchBaseArray));
+        }
+        List<String> returnedAttributes = Arrays.asList(searchControls.getReturningAttributes());
+        NamingEnumeration<SearchResult> answer = null;
+        List<String> users = new ArrayList<>();
+
+        if (log.isDebugEnabled()) {
+            log.debug(String.format("Searching for user(s) with SearchFilter: %s and page size %d", searchFilter,
+                    pageSize));
+        }
+        try {
+            for (String searchBase : searchBaseArray) {
+                do {
+                    List<String> tempUserList = new ArrayList<>();
+                    answer = ldapContext.search(escapeDNForSearch(searchBase), searchFilter, searchControls);
+                    if (answer.hasMore()) {
+                        tempUserList = getUserListFromSearch(isGroupFiltering, returnedAttributes, answer,
+                                isSingleAttributeFilterOperation(expressionConditions));
+                        pageIndex++;
+                    }
+                    if (CollectionUtils.isNotEmpty(tempUserList)) {
+                        if (isMemberShipPropertyFound) {
+                            /*
+                            Pagination is not supported for 'member' attribute group filtering. Also,
+                            we need do post-processing if we found username filtering or claim filtering,
+                            because can't apply claim filtering with memberShip group filtering and
+                            can't apply username filtering with 'CO', 'EW' filter operations.
+                             */
+                            users = membershipGroupFilterPostProcessing(isUsernameFiltering, isClaimFiltering,
+                                    expressionConditions, tempUserList);
+                            break;
+                        } else {
+                            // Handle pagination depends on given offset, i.e. start index.
+                            generatePaginatedUserList(pageIndex, offset, pageSize, tempUserList, users);
+                            int needMore = pageSize - users.size();
+                            if (needMore == 0) {
+                                break;
+                            }
+                        }
+                    }
+                    cookie = parseControls(ldapContext.getResponseControls());
+                    String userNameAttribute = realmConfig.getUserStoreProperty(LDAPConstants.USER_NAME_ATTRIBUTE);
+                    ldapContext.setRequestControls(new Control[] {
+                            new PagedResultsControl(pageSize, cookie, Control.CRITICAL),
+                            new SortControl(userNameAttribute, Control.NONCRITICAL)
+                    });
+                } while ((cookie != null) && (cookie.length != 0));
+            }
+        } catch (PartialResultException e) {
+            // Can be due to referrals in AD. So just ignore error.
+            if (isIgnorePartialResultException()) {
+                if (log.isDebugEnabled()) {
+                    log.debug(String.format("Error occurred while searching for user(s) for filter: %s", searchFilter));
+                }
+            } else {
+                log.error(String.format("Error occurred while searching for user(s) for filter: %s", searchFilter));
+                throw new UserStoreException(e.getMessage(), e);
+            }
+        } catch (NamingException e) {
+            log.error(String.format("Error occurred while searching for user(s) for filter: %s, %s", searchFilter,
+                    e.getMessage()));
+            throw new UserStoreException(e.getMessage(), e);
+        } catch (IOException e) {
+            log.error(String.format("Error occurred while doing paginated search, %s", e.getMessage()));
+            throw new UserStoreException(e.getMessage(), e);
+        } finally {
+            JNDIUtil.closeNamingEnumeration(answer);
+        }
+        return users;
     }
 
     private DirContext getOrganizationDirectoryContext(String dn) throws UserStoreException {
@@ -667,94 +767,6 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
             Condition rightCondition = ((OperationalCondition) condition).getRightCondition();
             getExpressionConditionsAsList(rightCondition, expressionConditions);
         }
-    }
-
-    private List<String> performLDAPSearch(LdapContext ldapContext, LDAPSearchSpecification ldapSearchSpecification,
-            String orgSearchBase, int pageSize, int offset, List<ExpressionCondition> expressionConditions)
-            throws UserStoreException {
-
-        byte[] cookie;
-        int pageIndex = -1;
-        boolean isGroupFiltering = ldapSearchSpecification.isGroupFiltering();
-        boolean isUsernameFiltering = ldapSearchSpecification.isUsernameFiltering();
-        boolean isClaimFiltering = ldapSearchSpecification.isClaimFiltering();
-        boolean isMemberShipPropertyFound = ldapSearchSpecification.isMemberShipPropertyFound();
-
-        String[] searchBaseArray = { orgSearchBase };
-        if (log.isDebugEnabled()) {
-            log.debug("Searching in the subdirectory : " + Arrays.toString(searchBaseArray));
-        }
-        String searchFilter = ldapSearchSpecification.getSearchFilterQuery();
-        SearchControls searchControls = ldapSearchSpecification.getSearchControls();
-        // Do not search in the sub trees
-//        searchControls.setSearchScope(SearchControls.ONELEVEL_SCOPE);
-        List<String> returnedAttributes = Arrays.asList(searchControls.getReturningAttributes());
-        NamingEnumeration<SearchResult> answer = null;
-        List<String> users = new ArrayList<>();
-
-        if (log.isDebugEnabled()) {
-            log.debug(String.format("Searching for user(s) with SearchFilter: %s and page size %d", searchFilter,
-                    pageSize));
-        }
-        try {
-            for (String searchBase : searchBaseArray) {
-                do {
-                    List<String> tempUserList = new ArrayList<>();
-                    answer = ldapContext.search(escapeDNForSearch(searchBase), searchFilter, searchControls);
-                    if (answer.hasMore()) {
-                        tempUserList = getUserListFromSearch(isGroupFiltering, returnedAttributes, answer,
-                                isSingleAttributeFilterOperation(expressionConditions));
-                        pageIndex++;
-                    }
-                    if (CollectionUtils.isNotEmpty(tempUserList)) {
-                        if (isMemberShipPropertyFound) {
-                            /*
-                            Pagination is not supported for 'member' attribute group filtering. Also,
-                            we need do post-processing if we found username filtering or claim filtering,
-                            because can't apply claim filtering with memberShip group filtering and
-                            can't apply username filtering with 'CO', 'EW' filter operations.
-                             */
-                            users = membershipGroupFilterPostProcessing(isUsernameFiltering, isClaimFiltering,
-                                    expressionConditions, tempUserList);
-                            break;
-                        } else {
-                            // Handle pagination depends on given offset, i.e. start index.
-                            generatePaginatedUserList(pageIndex, offset, pageSize, tempUserList, users);
-                            int needMore = pageSize - users.size();
-                            if (needMore == 0) {
-                                break;
-                            }
-                        }
-                    }
-                    cookie = parseControls(ldapContext.getResponseControls());
-                    String userNameAttribute = realmConfig.getUserStoreProperty(LDAPConstants.USER_NAME_ATTRIBUTE);
-                    ldapContext.setRequestControls(new Control[] {
-                            new PagedResultsControl(pageSize, cookie, Control.CRITICAL),
-                            new SortControl(userNameAttribute, Control.NONCRITICAL)
-                    });
-                } while ((cookie != null) && (cookie.length != 0));
-            }
-        } catch (PartialResultException e) {
-            // Can be due to referrals in AD. So just ignore error.
-            if (isIgnorePartialResultException()) {
-                if (log.isDebugEnabled()) {
-                    log.debug(String.format("Error occurred while searching for user(s) for filter: %s", searchFilter));
-                }
-            } else {
-                log.error(String.format("Error occurred while searching for user(s) for filter: %s", searchFilter));
-                throw new UserStoreException(e.getMessage(), e);
-            }
-        } catch (NamingException e) {
-            log.error(String.format("Error occurred while searching for user(s) for filter: %s, %s", searchFilter,
-                    e.getMessage()));
-            throw new UserStoreException(e.getMessage(), e);
-        } catch (IOException e) {
-            log.error(String.format("Error occurred while doing paginated search, %s", e.getMessage()));
-            throw new UserStoreException(e.getMessage(), e);
-        } finally {
-            JNDIUtil.closeNamingEnumeration(answer);
-        }
-        return users;
     }
 
     private List<String> getUserListFromSearch(boolean isGroupFiltering, List<String> returnedAttributes,
@@ -1238,5 +1250,38 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
         } else {
             return dnPartial;
         }
+    }
+
+    private String getAuthorizedSearchFilter(String searchFilter) throws UserStoreException {
+
+        OrganizationAuthorizationDao authorizationDao =
+                CustomUserStoreDataHolder.getInstance().getOrganizationAuthDao();
+        List<String> orgList;
+        try {
+            orgList = authorizationDao
+                    .findAuthorizedOrganizationsList(getAuthenticatedUserId(), getTenantId(), USER_MGT_LIST_PERMISSION);
+        } catch (OrganizationManagementException e) {
+            String errorMsg =
+                    "Error while retrieving authorized organizations. permission : " + USER_MGT_LIST_PERMISSION;
+            log.error(errorMsg, e);
+            throw new UserStoreException(errorMsg, e);
+        } catch (org.wso2.carbon.user.api.UserStoreException e) {
+            String errorMsg = "Error while retrieving authenticated user id : " + getAuthenticatedUsername();
+            throw new UserStoreException(errorMsg, e);
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("Initial search filter : " + searchFilter);
+        }
+        // TODO must check if the user has permissions for at least one org before hand.
+        StringJoiner joiner = new StringJoiner("","(", ")");
+        orgList.forEach(org -> joiner.add(org));
+        String orgFilter = "(|#)".replace("#", joiner.toString());
+        searchFilter.length();
+        // Initial filter : (&(objectClass=person)(homeEmail=nipunt@wso2.com))
+        // orgFilter : (|(org=89651ae3-83fd-43eb-8fd4-7528ef69e3bd)(org=bc26d67e-a6e1-4c16-800e-9594c08cccf5))
+        // Final search filter :
+        // (&(objectClass=person)(homeEmail=nipunt@wso2.com)(|(organization=89651ae3-83fd-43eb-8fd4-7528ef69e3bd)
+        // (organization=bc26d67e-a6e1-4c16-800e-9594c08cccf5)))
+        return searchFilter.substring(0, searchFilter.lastIndexOf(")")).concat(orgFilter).concat(")");
     }
 }
