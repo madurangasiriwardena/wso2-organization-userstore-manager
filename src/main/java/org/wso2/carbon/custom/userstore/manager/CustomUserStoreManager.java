@@ -32,6 +32,7 @@ import org.wso2.carbon.identity.organization.mgt.core.exception.OrganizationMana
 import org.wso2.carbon.identity.organization.mgt.core.model.Organization;
 import org.wso2.carbon.identity.organization.mgt.core.model.UserStoreConfig;
 import org.wso2.carbon.identity.organization.mgt.core.usermgt.AbstractOrganizationMgtUserStoreManager;
+import org.wso2.carbon.user.api.AuthorizationManager;
 import org.wso2.carbon.user.api.RealmConfiguration;
 import org.wso2.carbon.user.core.UserCoreConstants;
 import org.wso2.carbon.user.core.UserRealm;
@@ -80,11 +81,13 @@ import javax.naming.ldap.PagedResultsResponseControl;
 import javax.naming.ldap.SortControl;
 
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.DN;
+import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.ORGANIZATION_ADMIN_PERMISSION;
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.ORGANIZATION_ID_CLAIM_URI;
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.ORGANIZATION_ID_DEFAULT_CLAIM_URI;
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.ORGANIZATION_NAME_CLAIM_URI;
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.ORGANIZATION_NAME_DEFAULT_CLAIM_URI;
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.ROOT;
+import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.UI_EXECUTE;
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.USER_MGT_CREATE_PERMISSION;
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.USER_MGT_LIST_PERMISSION;
 import static org.wso2.carbon.user.core.UserCoreConstants.RealmConfig.PROPERTY_DOMAIN_NAME;
@@ -455,6 +458,54 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
         }
     }
 
+    private String getAuthorizedSearchFilter(String searchFilter, String orgIdAttribute) throws UserStoreException {
+
+        OrganizationAuthorizationDao authorizationDao =
+                CustomUserStoreDataHolder.getInstance().getOrganizationAuthDao();
+        List<String> orgList;
+        try {
+            orgList = authorizationDao
+                    .findAuthorizedOrganizationsList(getAuthenticatedUserId(), getTenantId(), USER_MGT_LIST_PERMISSION);
+        } catch (OrganizationManagementException e) {
+            String errorMsg =
+                    "Error while retrieving authorized organizations. permission : " + USER_MGT_LIST_PERMISSION;
+            log.error(errorMsg, e);
+            throw new UserStoreException(errorMsg, e);
+        } catch (org.wso2.carbon.user.api.UserStoreException e) {
+            String errorMsg = "Error while retrieving authenticated user id : " + getAuthenticatedUsername();
+            throw new UserStoreException(errorMsg, e);
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("Initial search filter : " + searchFilter);
+        }
+        StringJoiner joiner = new StringJoiner(")(","(", ")");
+        orgList.forEach(org -> joiner.add(orgIdAttribute + "=" + org));
+        String orgFilter = "(|#)".replace("#", joiner.toString());
+        // Initial filter : (&(objectClass=person)(homeEmail=nipunt@wso2.com))
+        // org filter :
+        // (|(organization=89651ae3-83fd-43eb-8fd4-7528ef69e3bd)(organization=bc26d67e-a6e1-4c16-800e-9594c08cccf5))
+        // Final search filter :
+        // (&(objectClass=person)(homeEmail=nipunt@wso2.com)(|(organization=89651ae3-83fd-43eb-8fd4-7528ef69e3bd)
+        // (organization=bc26d67e-a6e1-4c16-800e-9594c08cccf5)))
+        return searchFilter.substring(0, searchFilter.lastIndexOf(")")).concat(orgFilter).concat(")");
+    }
+
+    private boolean isAuthorizedAsAdmin() throws UserStoreException {
+
+        // Having this permission ('/permission/admin/manage/identity/organizationmgt/admin') assigned from the WSO2
+        // default registry based permission model allows :  listing all the organizations, listing all the users,
+        // listing all the groups and granting any permission to any user against any organization.
+        try {
+            AuthorizationManager authorizationManager = CustomUserStoreDataHolder.getInstance().
+                    getRealmService().getTenantUserRealm(getTenantId()).getAuthorizationManager();
+            return authorizationManager.isUserAuthorized(getAuthenticatedUsername(), ORGANIZATION_ADMIN_PERMISSION, UI_EXECUTE);
+        } catch (org.wso2.carbon.user.api.UserStoreException e) {
+            throw new UserStoreException("Error while checking if the authorized user is an admin", e);
+        }
+    }
+
+    //***************** End of newly introduced methods *****************
+
     private List<String> performLDAPSearch(LdapContext ldapContext, LDAPSearchSpecification ldapSearchSpecification,
             String orgSearchBase, String orgIdAttribute, int pageSize, int offset,
             List<ExpressionCondition> expressionConditions)
@@ -472,13 +523,17 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
         String[] searchBaseArray;
         // If organization is defined in the request
         if (orgSearchBase != null) {
-            // Do not search in the LDAP sub trees
+            // Search only in the given OU, not in sub trees
             searchControls.setSearchScope(SearchControls.ONELEVEL_SCOPE);
             // Search in the organization's user search base (DN)
             searchBaseArray = new String[] { orgSearchBase };
         } else {
-            // Alter the search filter to include authorized org IDs as search conditions
-            searchFilter = getAuthorizedSearchFilter(searchFilter, orgIdAttribute);
+            // admin users can do full tree search
+            // Non-admin users can only search in allowed organizations
+            if (!isAuthorizedAsAdmin()) {
+                // Alter the search filter to include authorized org IDs as search conditions
+                searchFilter = getAuthorizedSearchFilter(searchFilter, orgIdAttribute);
+            }
             // Use the default search base (Search will NOT be limited to one level)
             searchBaseArray = ldapSearchSpecification.getSearchBases().split("#");
         }
@@ -554,41 +609,6 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
         }
         return users;
     }
-
-    private String getAuthorizedSearchFilter(String searchFilter, String orgIdAttribute) throws UserStoreException {
-
-        OrganizationAuthorizationDao authorizationDao =
-                CustomUserStoreDataHolder.getInstance().getOrganizationAuthDao();
-        List<String> orgList;
-        try {
-            orgList = authorizationDao
-                    .findAuthorizedOrganizationsList(getAuthenticatedUserId(), getTenantId(), USER_MGT_LIST_PERMISSION);
-        } catch (OrganizationManagementException e) {
-            String errorMsg =
-                    "Error while retrieving authorized organizations. permission : " + USER_MGT_LIST_PERMISSION;
-            log.error(errorMsg, e);
-            throw new UserStoreException(errorMsg, e);
-        } catch (org.wso2.carbon.user.api.UserStoreException e) {
-            String errorMsg = "Error while retrieving authenticated user id : " + getAuthenticatedUsername();
-            throw new UserStoreException(errorMsg, e);
-        }
-        if (log.isDebugEnabled()) {
-            log.debug("Initial search filter : " + searchFilter);
-        }
-        // TODO must check if the user has permissions for at least one org before hand.
-        StringJoiner joiner = new StringJoiner(")(","(", ")");
-        orgList.forEach(org -> joiner.add(orgIdAttribute + "=" + org));
-        String orgFilter = "(|#)".replace("#", joiner.toString());
-        // Initial filter : (&(objectClass=person)(homeEmail=nipunt@wso2.com))
-        // org filter :
-        // (|(organization=89651ae3-83fd-43eb-8fd4-7528ef69e3bd)(organization=bc26d67e-a6e1-4c16-800e-9594c08cccf5))
-        // Final search filter :
-        // (&(objectClass=person)(homeEmail=nipunt@wso2.com)(|(organization=89651ae3-83fd-43eb-8fd4-7528ef69e3bd)
-        // (organization=bc26d67e-a6e1-4c16-800e-9594c08cccf5)))
-        return searchFilter.substring(0, searchFilter.lastIndexOf(")")).concat(orgFilter).concat(")");
-    }
-
-    //***************** End of newly introduced methods *****************
 
     private DirContext getOrganizationDirectoryContext(String dn) throws UserStoreException {
 
