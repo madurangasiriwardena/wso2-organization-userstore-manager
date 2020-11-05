@@ -1,7 +1,7 @@
 # wso2-organization-userstore-manager
 User store manager to cater organization management operations (wso2is-5.10.0)
 
-##Custom user store manager configurations
+##Organization user store manager configurations
 1. Make default `organization` SCIM2 attribute a complex attribute with `organization.id` and `organization.name` sub-attributes 
 by adding/changing below in the `<IS_HOME>>/repository/conf/scim2-schema-extension.config` file.
 ```

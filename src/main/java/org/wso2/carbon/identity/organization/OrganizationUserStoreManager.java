@@ -16,14 +16,14 @@
  * under the License.
  */
 
-package org.wso2.carbon.custom.userstore.manager;
+package org.wso2.carbon.identity.organization;
 
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.wso2.carbon.context.PrivilegedCarbonContext;
-import org.wso2.carbon.custom.userstore.manager.internal.CustomUserStoreDataHolder;
+import org.wso2.carbon.identity.organization.internal.OrganizationUserStoreDataHolder;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
 import org.wso2.carbon.identity.organization.mgt.core.OrganizationManager;
 import org.wso2.carbon.identity.organization.mgt.core.dao.OrganizationAuthorizationDao;
@@ -92,25 +92,24 @@ import static org.wso2.carbon.identity.organization.mgt.core.constant.Organizati
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.USER_MGT_LIST_PERMISSION;
 import static org.wso2.carbon.user.core.UserCoreConstants.RealmConfig.PROPERTY_DOMAIN_NAME;
 
-//TODO change class name
-public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreManager {
+public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserStoreManager {
 
-    private static final Log log = LogFactory.getLog(CustomUserStoreManager.class);
+    private static final Log log = LogFactory.getLog(OrganizationUserStoreManager.class);
 
     private static final String PROPERTY_REFERRAL_IGNORE = "ignore";
     private static final String MULTI_ATTRIBUTE_SEPARATOR = "MultiAttributeSeparator";
 
-    public CustomUserStoreManager() {
+    public OrganizationUserStoreManager() {
     }
 
-    public CustomUserStoreManager(RealmConfiguration realmConfig, Map<String, Object> properties,
+    public OrganizationUserStoreManager(RealmConfiguration realmConfig, Map<String, Object> properties,
             ClaimManager claimManager, ProfileConfigurationManager profileManager, UserRealm realm, Integer tenantId)
             throws UserStoreException {
 
         super(realmConfig, properties, claimManager, profileManager, realm, tenantId);
     }
 
-    public CustomUserStoreManager(RealmConfiguration realmConfig, ClaimManager claimManager,
+    public OrganizationUserStoreManager(RealmConfiguration realmConfig, ClaimManager claimManager,
             ProfileConfigurationManager profileManager) throws UserStoreException {
 
         super(realmConfig, claimManager, profileManager);
@@ -164,7 +163,7 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
         String orgNameAttribute, orgIdAttribute;
         try {
             int tenantId = PrivilegedCarbonContext.getThreadLocalCarbonContext().getTenantId();
-            org.wso2.carbon.user.api.UserRealm tenantUserRealm = CustomUserStoreDataHolder.getInstance()
+            org.wso2.carbon.user.api.UserRealm tenantUserRealm = OrganizationUserStoreDataHolder.getInstance()
                     .getRealmService().getTenantUserRealm(tenantId);
             org.wso2.carbon.user.api.ClaimManager claimManager = tenantUserRealm.getClaimManager();
             orgNameAttribute = claimManager
@@ -201,7 +200,7 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
         // If organization is defined in the request, find the organization DN
         if (orgIdentifier != null) {
             // Resolve organization identifier
-            OrganizationManager orgService = CustomUserStoreDataHolder.getInstance().getOrganizationService();
+            OrganizationManager orgService = OrganizationUserStoreDataHolder.getInstance().getOrganizationService();
             try {
                 orgIdentifier = nameAsIdentifier ? orgService.getOrganizationIdByName(orgIdentifier) : orgIdentifier;
             } catch (OrganizationManagementClientException e) {
@@ -281,7 +280,7 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
         String orgNameAttribute, orgIdAttribute;
         try {
             int tenantId = PrivilegedCarbonContext.getThreadLocalCarbonContext().getTenantId();
-            org.wso2.carbon.user.api.UserRealm tenantUserRealm = CustomUserStoreDataHolder.getInstance()
+            org.wso2.carbon.user.api.UserRealm tenantUserRealm = OrganizationUserStoreDataHolder.getInstance()
                     .getRealmService().getTenantUserRealm(tenantId);
             org.wso2.carbon.user.api.ClaimManager claimManager = tenantUserRealm.getClaimManager();
             orgNameAttribute = claimManager
@@ -307,7 +306,7 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
                 processedClaimAttributes.get(orgNameAttribute);
         orgIdentifier = StringUtils.trim(orgIdentifier);
         String orgId, orgName;
-        OrganizationManager organizationManager = CustomUserStoreDataHolder.getInstance().getOrganizationService();
+        OrganizationManager organizationManager = OrganizationUserStoreDataHolder.getInstance().getOrganizationService();
         Organization organization;
         try {
             // Get organization id
@@ -341,7 +340,7 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
     protected void persistUser(String userID, String userName, Object credential, String[] roleList,
             Map<String, String> claims) throws UserStoreException {
 
-        OrganizationManager organizationService = CustomUserStoreDataHolder.getInstance().getOrganizationService();
+        OrganizationManager organizationService = OrganizationUserStoreDataHolder.getInstance().getOrganizationService();
         String orgNameClaimUri = !StringUtils.isBlank(IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI)) ?
                 IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI).trim() :
                 ORGANIZATION_NAME_DEFAULT_CLAIM_URI;
@@ -583,7 +582,7 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
     private String getAuthorizedSearchFilter(String searchFilter, String orgIdAttribute) throws UserStoreException {
 
         OrganizationAuthorizationDao authorizationDao =
-                CustomUserStoreDataHolder.getInstance().getOrganizationAuthDao();
+                OrganizationUserStoreDataHolder.getInstance().getOrganizationAuthDao();
         List<String> orgList;
         try {
             orgList = authorizationDao
@@ -634,7 +633,7 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
         // default registry based permission model allows :  listing all the organizations, listing all the users,
         // listing all the groups and granting any permission to any user against any organization.
         try {
-            AuthorizationManager authorizationManager = CustomUserStoreDataHolder.getInstance().
+            AuthorizationManager authorizationManager = OrganizationUserStoreDataHolder.getInstance().
                     getRealmService().getTenantUserRealm(getTenantId()).getAuthorizationManager();
             return authorizationManager.isUserAuthorized(getAuthenticatedUsername(), ORGANIZATION_ADMIN_PERMISSION, UI_EXECUTE);
         } catch (org.wso2.carbon.user.api.UserStoreException e) {
@@ -648,7 +647,7 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
         // To create a user inside an organization
         // you should have '/permission/admin/organizations/create' over the subject organization
         OrganizationAuthorizationDao authorizationDao =
-                CustomUserStoreDataHolder.getInstance().getOrganizationAuthDao();
+                OrganizationUserStoreDataHolder.getInstance().getOrganizationAuthDao();
         try {
             return authorizationDao.isUserAuthorized(getAuthenticatedUserId(), organizationId, permission);
         } catch (OrganizationManagementException | org.wso2.carbon.user.api.UserStoreException e) {
@@ -673,7 +672,7 @@ public class CustomUserStoreManager extends AbstractOrganizationMgtUserStoreMana
             org.wso2.carbon.user.api.UserStoreException {
 
         try {
-            AbstractUserStoreManager userStoreManager = (AbstractUserStoreManager) CustomUserStoreDataHolder
+            AbstractUserStoreManager userStoreManager = (AbstractUserStoreManager) OrganizationUserStoreDataHolder
                     .getInstance().getRealmService().getTenantUserRealm(tenantId).getUserStoreManager();
             return userStoreManager.getUserIDFromUserName(username);
         } catch (org.wso2.carbon.user.api.UserStoreException e) {

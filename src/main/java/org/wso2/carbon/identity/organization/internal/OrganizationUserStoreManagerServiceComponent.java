@@ -16,7 +16,7 @@
  * under the License.
  */
 
-package org.wso2.carbon.custom.userstore.manager.internal;
+package org.wso2.carbon.identity.organization.internal;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -27,7 +27,7 @@ import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
-import org.wso2.carbon.custom.userstore.manager.CustomUserStoreManager;
+import org.wso2.carbon.identity.organization.OrganizationUserStoreManager;
 import org.wso2.carbon.identity.organization.mgt.core.OrganizationManager;
 import org.wso2.carbon.identity.organization.mgt.core.dao.OrganizationAuthorizationDaoImpl;
 import org.wso2.carbon.user.api.UserStoreManager;
@@ -36,14 +36,14 @@ import org.wso2.carbon.user.core.service.RealmService;
 /**
  * OSGI service component for the custom user store manager bundle.
  */
-@Component(name = "custom.userstore.manager",
+@Component(name = "org.wso2.carbon.identity.organization.userstore.manager",
            immediate = true)
-public class CustomUserStoreManagerServiceComponent {
+public class OrganizationUserStoreManagerServiceComponent {
 
-    private static final Log log = LogFactory.getLog(CustomUserStoreManagerServiceComponent.class);
+    private static final Log log = LogFactory.getLog(OrganizationUserStoreManagerServiceComponent.class);
 
     /**
-     * Register custom user store manager service in the OSGI context.
+     * Register organization user store manager service in the OSGI context.
      *
      * @param componentContext
      */
@@ -52,12 +52,12 @@ public class CustomUserStoreManagerServiceComponent {
 
         try {
             BundleContext bundleContext = componentContext.getBundleContext();
-            bundleContext.registerService(UserStoreManager.class.getName(), new CustomUserStoreManager(), null);
+            bundleContext.registerService(UserStoreManager.class.getName(), new OrganizationUserStoreManager(), null);
             if (log.isDebugEnabled()) {
-                log.debug("Custom user store manager component activated successfully.");
+                log.debug("Organization user store manager component activated successfully.");
             }
         } catch (Throwable e) {
-            log.error("Error while activating custom user store manager module.", e);
+            log.error("Error while activating organization user store manager module.", e);
         }
     }
 
@@ -71,7 +71,7 @@ public class CustomUserStoreManagerServiceComponent {
         if (log.isDebugEnabled()) {
             log.debug("Setting the Realm Service");
         }
-        CustomUserStoreDataHolder.getInstance().setRealmService(realmService);
+        OrganizationUserStoreDataHolder.getInstance().setRealmService(realmService);
     }
 
     protected void unsetRealmService(RealmService realmService) {
@@ -79,7 +79,7 @@ public class CustomUserStoreManagerServiceComponent {
         if (log.isDebugEnabled()) {
             log.debug("Unset the Realm Service.");
         }
-        CustomUserStoreDataHolder.getInstance().setRealmService(null);
+        OrganizationUserStoreDataHolder.getInstance().setRealmService(null);
     }
 
     @Reference(name = "carbon.organization.mgt.component",
@@ -92,8 +92,8 @@ public class CustomUserStoreManagerServiceComponent {
         if (log.isDebugEnabled()) {
             log.debug("Setting the Organization Management Service");
         }
-        CustomUserStoreDataHolder.getInstance().setOrganizationService(organizationService);
-        CustomUserStoreDataHolder.getInstance().setOrganizationAuthDao(new OrganizationAuthorizationDaoImpl());
+        OrganizationUserStoreDataHolder.getInstance().setOrganizationService(organizationService);
+        OrganizationUserStoreDataHolder.getInstance().setOrganizationAuthDao(new OrganizationAuthorizationDaoImpl());
     }
 
     protected void unsetOrganizationMgtService(OrganizationManager organizationService) {
@@ -101,6 +101,6 @@ public class CustomUserStoreManagerServiceComponent {
         if (log.isDebugEnabled()) {
             log.debug("Unset the OrganizationManagement Service.");
         }
-        CustomUserStoreDataHolder.getInstance().setOrganizationService(null);
+        OrganizationUserStoreDataHolder.getInstance().setOrganizationService(null);
     }
 }

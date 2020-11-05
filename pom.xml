@@ -17,19 +17,14 @@
 
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
 
-    <parent>
-        <groupId>org.wso2.carbon</groupId>
-        <artifactId>carbon-kernel</artifactId>
-        <version>4.6.0</version>
-    </parent>
-    <groupId>org.wso2.carbon.custom.userstore.manager</groupId>
-    <artifactId>wso2-organization-userstore-manager</artifactId>
+    <groupId>org.wso2.carbon.identity.organization</groupId>
+    <artifactId>org.wso2.carbon.identity.organization.userstore.manager</artifactId>
     <version>1.0</version>
 
     <name>wso2-organization-userstore-manager</name>
     <url>http://www.wso2.com</url>
+    <modelVersion>4.0.0</modelVersion>
     <packaging>bundle</packaging>
 
     <properties>
@@ -37,25 +32,32 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <carbon.identity.framework.version>5.17.5</carbon.identity.framework.version>
+        <osgi.services.version>3.5.100.v20160504-1419</osgi.services.version>
+        <commons.logging.version>1.2</commons.logging.version>
+        <org.apache.felix.scr.ds-annotations.version>1.2.10</org.apache.felix.scr.ds-annotations.version>
+        <kernel.version>4.6.0</kernel.version>
     </properties>
 
     <dependencies>
         <dependency>
             <groupId>org.wso2.eclipse.osgi</groupId>
             <artifactId>org.eclipse.osgi.services</artifactId>
+            <version>${osgi.services.version}</version>
         </dependency>
         <dependency>
             <groupId>commons-logging</groupId>
             <artifactId>commons-logging</artifactId>
+            <version>${commons.logging.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.felix</groupId>
             <artifactId>org.apache.felix.scr.ds-annotations</artifactId>
-            <version>1.2.10</version>
+            <version>${org.apache.felix.scr.ds-annotations.version}</version>
         </dependency>
         <dependency>
             <groupId>org.wso2.carbon</groupId>
             <artifactId>org.wso2.carbon.user.core</artifactId>
+            <version>${kernel.version}</version>
         </dependency>
         <dependency>
             <groupId>org.wso2.carbon.identity.framework</groupId>
@@ -92,16 +94,17 @@
             <plugin>
                 <groupId>org.apache.felix</groupId>
                 <artifactId>maven-bundle-plugin</artifactId>
+                <version>3.2.0</version>
                 <extensions>true</extensions>
                 <configuration>
                     <instructions>
                         <Bundle-SymbolicName>${project.artifactId}</Bundle-SymbolicName>
                         <Bundle-Name>${project.artifactId}</Bundle-Name>
-                        <Private-Package>org.wso2.carbon.custom.userstore.manager.internal</Private-Package>
+                        <Private-Package>org.wso2.carbon.identity.organization.internal</Private-Package>
                         <Import-Package></Import-Package>
                         <Export-Package>
-                            !org.wso2.carbon.custom.userstore.manager.internal,
-                            org.wso2.carbon.custom.userstore.manager.*; version="${project.version}",
+                            !org.wso2.carbon.identity.organization.internal,
+                            org.wso2.carbon.identity.organization.*; version="${project.version}",
                         </Export-Package>
                         <DynamicImport-Package>*</DynamicImport-Package>
                     </instructions>
@@ -109,4 +112,17 @@
             </plugin>
         </plugins>
     </build>
+
+    <repositories>
+        <repository>
+            <id>wso2-nexus</id>
+            <name>WSO2 internal Repository</name>
+            <url>https://maven.wso2.org/nexus/content/groups/wso2-public/</url>
+            <releases>
+                <enabled>true</enabled>
+                <updatePolicy>daily</updatePolicy>
+                <checksumPolicy>ignore</checksumPolicy>
+            </releases>
+        </repository>
+    </repositories>
 </project>

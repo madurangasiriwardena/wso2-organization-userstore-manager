@@ -16,15 +16,15 @@
  * under the License.
  */
 
-package org.wso2.carbon.custom.userstore.manager.internal;
+package org.wso2.carbon.identity.organization.internal;
 
 import org.wso2.carbon.identity.organization.mgt.core.OrganizationManager;
 import org.wso2.carbon.identity.organization.mgt.core.dao.OrganizationAuthorizationDao;
 import org.wso2.carbon.user.core.service.RealmService;
 
-public class CustomUserStoreDataHolder {
+public class OrganizationUserStoreDataHolder {
 
-    private static CustomUserStoreDataHolder dataHolder = new CustomUserStoreDataHolder();
+    private static OrganizationUserStoreDataHolder dataHolder = new OrganizationUserStoreDataHolder();
     private RealmService realmService;
     private OrganizationManager organizationService;
     private OrganizationAuthorizationDao organizationAuthDao;
@@ -34,15 +34,16 @@ public class CustomUserStoreDataHolder {
     }
 
     public void setOrganizationAuthDao(OrganizationAuthorizationDao organizationAuthDao) {
+
         this.organizationAuthDao = organizationAuthDao;
     }
 
-    public static CustomUserStoreDataHolder getInstance() {
+    public static OrganizationUserStoreDataHolder getInstance() {
 
         return dataHolder;
     }
 
-    public void setDataHolder(CustomUserStoreDataHolder dataHolder) {
+    public void setDataHolder(OrganizationUserStoreDataHolder dataHolder) {
 
         this.dataHolder = dataHolder;
     }
@@ -53,6 +54,7 @@ public class CustomUserStoreDataHolder {
     }
 
     public void setRealmService(RealmService realmService) {
+
         this.realmService = realmService;
     }
 
