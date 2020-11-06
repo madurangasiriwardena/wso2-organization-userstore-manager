@@ -16,14 +16,14 @@
  * under the License.
  */
 
-package org.wso2.carbon.identity.organization;
+package org.wso2.carbon.identity.organization.userstore;
 
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.wso2.carbon.context.PrivilegedCarbonContext;
-import org.wso2.carbon.identity.organization.internal.OrganizationUserStoreDataHolder;
+import org.wso2.carbon.identity.organization.userstore.internal.OrganizationUserStoreDataHolder;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
 import org.wso2.carbon.identity.organization.mgt.core.OrganizationManager;
 import org.wso2.carbon.identity.organization.mgt.core.dao.OrganizationAuthorizationDao;
@@ -310,13 +310,15 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         Organization organization;
         try {
             // Get organization id
-            orgId = patchByName ? organizationManager.getOrganizationIdByName(orgIdentifier) : orgIdentifier;
+            orgId = patchByName && !patchById ? organizationManager.getOrganizationIdByName(orgIdentifier) :
+                    orgIdentifier;
             organization = organizationManager.getOrganization(orgId, false);
         } catch (OrganizationManagementException e) {
             throw new UserStoreException("Error while obtaining organization details.", e);
         }
         // Permission check for the new organization
-        if (!isAuthorized(organization.getId(), USER_MGT_CREATE_PERMISSION)) {
+        // ROOT organization is system created. Therefore, no user to authorize at that moment
+        if (getAuthenticatedUsername() != null && !isAuthorized(organization.getId(), USER_MGT_CREATE_PERMISSION)) {
             throw new UserStoreException("Forbidden organization : " + organization.getId());
         }
         // Set user claims to be patched
@@ -330,7 +332,10 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             // Patch organization attributes of the user
             super.doSetUserAttributesWithID(userID, processedClaimAttributes, profileName);
             // Move user to a different OU
-            moveUser(userID, newUserDn);
+            //TODO this is to simply skip admin user's move during the  ROOT claim set. Fix this properly
+            if (getAuthenticatedUsername() != null) {
+                moveUser(userID, newUserDn);
+            }
         } catch (OrganizationManagementException e) {
             throw new UserStoreException("Error while moving the LDAP entry. user id : " + userID);
         }
@@ -671,6 +676,9 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
     private String getUserIDFromUserName(String username, int tenantId) throws
             org.wso2.carbon.user.api.UserStoreException {
 
+        if (username == null) {
+            return null;
+        }
         try {
             AbstractUserStoreManager userStoreManager = (AbstractUserStoreManager) OrganizationUserStoreDataHolder
                     .getInstance().getRealmService().getTenantUserRealm(tenantId).getUserStoreManager();

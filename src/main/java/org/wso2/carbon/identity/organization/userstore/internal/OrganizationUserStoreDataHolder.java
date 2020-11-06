@@ -16,7 +16,7 @@
  * under the License.
  */
 
-package org.wso2.carbon.identity.organization.internal;
+package org.wso2.carbon.identity.organization.userstore.internal;
 
 import org.wso2.carbon.identity.organization.mgt.core.OrganizationManager;
 import org.wso2.carbon.identity.organization.mgt.core.dao.OrganizationAuthorizationDao;

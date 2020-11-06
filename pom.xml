@@ -18,7 +18,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
-    <groupId>org.wso2.carbon.identity.organization</groupId>
+    <groupId>org.wso2.carbon.identity.organization.userstore</groupId>
     <artifactId>org.wso2.carbon.identity.organization.userstore.manager</artifactId>
     <version>1.0</version>
 
@@ -100,11 +100,11 @@
                     <instructions>
                         <Bundle-SymbolicName>${project.artifactId}</Bundle-SymbolicName>
                         <Bundle-Name>${project.artifactId}</Bundle-Name>
-                        <Private-Package>org.wso2.carbon.identity.organization.internal</Private-Package>
+                        <Private-Package>org.wso2.carbon.identity.organization.userstore.internal</Private-Package>
                         <Import-Package></Import-Package>
                         <Export-Package>
-                            !org.wso2.carbon.identity.organization.internal,
-                            org.wso2.carbon.identity.organization.*; version="${project.version}",
+                            !org.wso2.carbon.identity.organization.userstore.internal,
+                            org.wso2.carbon.identity.organization.userstore.*; version="${project.version}",
                         </Export-Package>
                         <DynamicImport-Package>*</DynamicImport-Package>
                     </instructions>
