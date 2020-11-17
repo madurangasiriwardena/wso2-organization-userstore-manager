@@ -54,8 +54,26 @@ public class OrganizationSCIMUserStoreErrorResolver implements SCIMUserStoreErro
 
         switch (errorCode) {
             case "ORGUMGT_00001":
+            case "ORGUMGT_00004":
+            case "ORGUMGT_00005":
+            case "ORGUMGT_00006":
+            case "ORGUMGT_00007":
+            case "ORGUMGT_00009":
+            case "ORGUMGT_00010":
+            case "ORGUMGT_00011":
+            case "ORGUMGT_00012":
+            case "ORGUMGT_00013":
+            case "ORGUMGT_00014":
+            case "ORGUMGT_00015":
+            case "ORGUMGT_00016":
+            case "ORGUMGT_00017":
+            case "ORGUMGT_00018":
+            case "ORGUMGT_00019":
+            case "ORGUMGT_00020":
+            case "ORGUMGT_00021":
                 return HttpStatus.SC_INTERNAL_SERVER_ERROR;
             case "ORGUMGT_00002":
+            case "ORGUMGT_00008":
                 return HttpStatus.SC_BAD_REQUEST;
             case "ORGUMGT_00003":
                 return HttpStatus.SC_FORBIDDEN;
