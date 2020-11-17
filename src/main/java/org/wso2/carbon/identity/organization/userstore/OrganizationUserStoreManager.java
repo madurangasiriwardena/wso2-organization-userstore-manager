@@ -22,6 +22,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.http.HttpStatus;
 import org.wso2.carbon.context.PrivilegedCarbonContext;
 import org.wso2.carbon.identity.organization.userstore.internal.OrganizationUserStoreDataHolder;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
@@ -79,6 +80,7 @@ import javax.naming.ldap.LdapContext;
 import javax.naming.ldap.PagedResultsControl;
 import javax.naming.ldap.PagedResultsResponseControl;
 import javax.naming.ldap.SortControl;
+import org.wso2.carbon.identity.organization.userstore.constants.OrganizationUserStoreManagerConstants.ErrorMessage;
 
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.DN;
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.ORGANIZATION_ADMIN_PERMISSION;
@@ -137,7 +139,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         userList.setPaginatedSearchResult(userNames);
         userList.setSkippedUserCount(userNames.getSkippedUserCount());
         List<User> users = new ArrayList<>();
-        for (String userName : userNames.getUsers()) {
+        for (String userName: userNames.getUsers()) {
             User user = getUser(null, userName);
             users.add(user);
         }
@@ -160,7 +162,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
                 IdentityUtil.getProperty(ORGANIZATION_ID_CLAIM_URI).trim() :
                 ORGANIZATION_ID_DEFAULT_CLAIM_URI;
         // Find respective attribute names
-        String orgNameAttribute, orgIdAttribute;
+        String orgNameAttribute = null, orgIdAttribute = null;
         try {
             int tenantId = PrivilegedCarbonContext.getThreadLocalCarbonContext().getTenantId();
             org.wso2.carbon.user.api.UserRealm tenantUserRealm = OrganizationUserStoreDataHolder.getInstance()
@@ -171,9 +173,8 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             orgIdAttribute = claimManager
                     .getAttributeName(this.realmConfig.getUserStoreProperty(PROPERTY_DOMAIN_NAME), orgIdClaimUri);
         } catch (org.wso2.carbon.user.api.UserStoreException e) {
-            String errorMsg = "Error obtaining organization claim/attribute mappings : " + e.getMessage();
-            log.error(errorMsg);
-            throw new UserStoreException(errorMsg, e);
+            log.error(ErrorMessage.ERROR_OBTAINING_CLAIMS.getMessage());
+            throw new UserStoreException(ErrorMessage.ERROR_OBTAINING_CLAIMS.getMessage(), e);
         }
 
         String orgSearchBase = null;
@@ -202,26 +203,26 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             // Resolve organization identifier
             OrganizationManager orgService = OrganizationUserStoreDataHolder.getInstance().getOrganizationService();
             try {
-                orgIdentifier = nameAsIdentifier ? orgService.getOrganizationIdByName(orgIdentifier) : orgIdentifier;
+                orgIdentifier = nameAsIdentifier ? orgService.getOrganizationIdByName(orgIdentifier): orgIdentifier;
             } catch (OrganizationManagementClientException e) {
-                String errorMsg = "Failed resolving organization name : " + orgIdentifier + " to an organization id";
+                String msg = String.format(ErrorMessage.ERROR_ORG_NOT_FOUND.getMessage(), orgIdentifier);
                 if (log.isDebugEnabled()) {
-                    log.debug(errorMsg, e);
+                    log.debug(msg, e);
                 }
-                throw new UserStoreException(errorMsg, e);
+                throw new UserStoreException(msg, ErrorMessage.ERROR_ORG_NOT_FOUND.getCode(), e);
             } catch (OrganizationManagementException e) {
-                String errorMsg = "Error while obtaining organization Id : " + e.getMessage();
-                log.error(errorMsg, e);
-                throw new UserStoreException(errorMsg, e);
+                log.error(ErrorMessage.ERROR_WHILE_GETTING_ORG.getMessage(), e);
+                throw new UserStoreException(ErrorMessage.ERROR_WHILE_GETTING_ORG.getMessage(),
+                        ErrorMessage.ERROR_WHILE_GETTING_ORG.getCode(), e);
             }
             // Resolve user search base
             try {
                 // Get user store configs by organization ID
                 orgSearchBase = orgService.getUserStoreConfigs(orgIdentifier).get(DN).getValue();
             } catch (OrganizationManagementException e) {
-                String errorMsg = "Error while obtaining organization metadata : " + e.getMessage();
-                log.error(errorMsg, e);
-                throw new UserStoreException(errorMsg, e);
+                log.error(ErrorMessage.ERROR_WHILE_GETTING_ORG_META.getMessage(), e);
+                throw new UserStoreException(ErrorMessage.ERROR_WHILE_GETTING_ORG_META.getMessage(),
+                        ErrorMessage.ERROR_WHILE_GETTING_ORG_META.getCode(), e);
             }
         }
 
@@ -247,14 +248,15 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             users = performLDAPSearch(ldapContext, ldapSearchSpecification, orgSearchBase, orgIdAttribute, pageSize,
                     offset,
                     expressionConditions);
-            for (String ldapUser : users) {
+            for (String ldapUser: users) {
                 ldapUsers.add(UserCoreUtil.addDomainToName(ldapUser, getMyDomainName()));
             }
             result.setUsers(ldapUsers.toArray(new String[0]));
             return result;
         } catch (NamingException e) {
-            log.error(String.format("Error occurred while performing paginated search, %s", e.getMessage()));
-            throw new UserStoreException(e.getMessage(), e);
+            log.error(ErrorMessage.ERROR_WHILE_PAGINATED_SEARCH.getMessage(), e);
+            throw new UserStoreException(ErrorMessage.ERROR_WHILE_PAGINATED_SEARCH.getMessage(),
+                    ErrorMessage.ERROR_WHILE_PAGINATED_SEARCH.getCode(), e);
         } catch (IOException e) {
             log.error(String.format("Error occurred while setting paged results controls for paginated search, %s",
                     e.getMessage()));
@@ -288,7 +290,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             orgIdAttribute = claimManager
                     .getAttributeName(this.realmConfig.getUserStoreProperty(PROPERTY_DOMAIN_NAME), orgIdClaimUri);
         } catch (org.wso2.carbon.user.api.UserStoreException e) {
-            String errorMsg = "Error obtaining organization claim/attribute mappings : " + e.getMessage();
+            String errorMsg = "Error obtaining organization claim/attribute mappings: " + e.getMessage();
             log.error(errorMsg);
             throw new UserStoreException(errorMsg, e);
         }
@@ -319,10 +321,11 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         // Permission check for the new organization
         // ROOT organization is system created. Therefore, no user to authorize at that moment
         if (getAuthenticatedUsername() != null && !isAuthorized(organization.getId(), USER_MGT_CREATE_PERMISSION)) {
-            throw new UserStoreException("Forbidden organization : " + organization.getId());
+            throw new UserStoreException(ErrorMessage.ERROR_NOT_AUTHORIZED.getMessage(),
+                    ErrorMessage.ERROR_NOT_AUTHORIZED.getCode());
         }
         // Set user claims to be patched
-        orgName = patchById ? organization.getName() : orgIdentifier;
+        orgName = patchById ? organization.getName(): orgIdentifier;
         processedClaimAttributes.put(orgIdAttribute, orgId);
         processedClaimAttributes.put(orgNameAttribute, orgName);
         try {
@@ -337,7 +340,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
                 moveUser(userID, newUserDn);
             }
         } catch (OrganizationManagementException e) {
-            throw new UserStoreException("Error while moving the LDAP entry. user id : " + userID);
+            throw new UserStoreException("Error while moving the LDAP entry. user id: " + userID);
         }
     }
 
@@ -368,44 +371,45 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         Organization organization;
         try {
             orgIdentifier = nameAsIdentifier ?
-                    organizationService.getOrganizationIdByName(orgIdentifier) : orgIdentifier;
+                    organizationService.getOrganizationIdByName(orgIdentifier): orgIdentifier;
             organization = organizationService.getOrganization(orgIdentifier, false);
             claims.put(orgNameClaimUri, organization.getName());
             claims.put(orgIdClaimUri, organization.getId());
         } catch (OrganizationManagementClientException e) {
-            String errorMsg = "Failed resolving organization name : " + orgIdentifier + " to an organization id";
+            String msg = String.format(ErrorMessage.ERROR_ORG_NOT_FOUND.getMessage(), orgIdentifier);
             if (log.isDebugEnabled()) {
-                log.debug(errorMsg, e);
+                log.debug(msg, e);
             }
-            throw new UserStoreException(errorMsg, e);
+            throw new UserStoreException(msg, ErrorMessage.ERROR_ORG_NOT_FOUND.getCode(), e);
         } catch (OrganizationManagementException e) {
-            String errorMsg = "Error while obtaining organization Id : " + e.getMessage();
+            String errorMsg = "Error while obtaining organization Id: " + e.getMessage();
             log.error(errorMsg, e);
             throw new UserStoreException(errorMsg, e);
         }
         // Authorize user creation request
         if (!isAuthorized(claims.get(orgIdClaimUri), USER_MGT_CREATE_PERMISSION)) {
-            throw new UserStoreException("Not authorized");
+            throw new UserStoreException(ErrorMessage.ERROR_NOT_AUTHORIZED.getMessage(),
+                    ErrorMessage.ERROR_NOT_AUTHORIZED.getCode());
         }
         // Check if organization is active
         if (!Organization.OrgStatus.ACTIVE.equals(organization.getStatus())) {
-            String errorMsg = "Organization is not active : " + orgIdentifier;
+            String errorMsg = "Organization is not active: " + orgIdentifier;
             if (log.isDebugEnabled()) {
                 log.debug(errorMsg);
             }
-            throw new UserStoreException(errorMsg);
+            throw new UserStoreException(errorMsg, String.valueOf(HttpStatus.SC_BAD_REQUEST));
         }
         String orgDn;
         try {
             // Get user store configs by organization ID
             orgDn = organizationService.getUserStoreConfigs(orgIdentifier).get(DN).getValue();
         } catch (OrganizationManagementException e) {
-            String errorMsg = "Error while obtaining organization metadata : " + e.getMessage();
+            String errorMsg = "Error while obtaining organization metadata: " + e.getMessage();
             log.error(errorMsg, e);
             throw new UserStoreException(errorMsg, e);
         }
         if (log.isDebugEnabled()) {
-            log.debug("Organization id : " + orgIdentifier + ", DN : " + orgDn);
+            log.debug("Organization id: " + orgIdentifier + ", DN: " + orgDn);
         }
         DirContext dirContext = getOrganizationDirectoryContext(orgDn);
 
@@ -433,9 +437,8 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             }
             dirContext.bind(compoundName, null, basicAttributes);
         } catch (NamingException e) {
-            String errorMessage =
-                    "Cannot access the directory context or " + "user already exists in the system for user :"
-                            + userName;
+            String errorMessage = "Cannot access the directory context or user: " + userName + " already exists " +
+                    "in the system.";
             if (log.isDebugEnabled()) {
                 log.debug(errorMessage, e);
             }
@@ -448,13 +451,13 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
 
         if (roleList != null && roleList.length > 0) {
             try {
-                /* update the user roles */
+                // Update the user roles
                 doUpdateRoleListOfUserWithID(userID, null, roleList);
                 if (log.isDebugEnabled()) {
-                    log.debug("Roles are added for user  : " + userName + " successfully.");
+                    log.debug("Roles are added for user : " + userName + " successfully.");
                 }
             } catch (UserStoreException e) {
-                String errorMessage = "User is added. But error while updating role list of user : " + userName;
+                String errorMessage = "User: " + userName + " was added but an error occurred while updating role list. ";
                 if (log.isDebugEnabled()) {
                     log.debug(errorMessage, e);
                 }
@@ -495,8 +498,8 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             // Assume only one user is returned from the search.
             if (returnedResultList.hasMore()) {
                 oldDn = returnedResultList.next().getNameInNamespace();
-                prefix = StringUtils.contains(oldDn, ',') ? oldDn.substring( 0, oldDn.indexOf(",")) : null;
-                newDn = prefix != null ? prefix.concat(",").concat(newDn) : null;
+                prefix = StringUtils.contains(oldDn, ',') ? oldDn.substring( 0, oldDn.indexOf(",")): null;
+                newDn = prefix != null ? prefix.concat(",").concat(newDn): null;
             }
             if (newDn != null || oldDn != null) {
                 // Get existing user attributes.
@@ -513,10 +516,10 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
                 removeFromUserCache(username);
 
             } else {
-                throw new UserStoreException("Couldn't resolve new or old DN. newDn : " + newDn + ", oldDn : " + oldDn);
+                throw new UserStoreException("Couldn't resolve new or old DN. newDn: " + newDn + ", oldDn: " + oldDn);
             }
         } catch (NamingException | UserStoreException e) {
-            String errorMessage = "Error while moving the user organization. User ID : " + userID;
+            String errorMessage = "Error while moving the user organization. User ID: " + userID;
             if (log.isDebugEnabled()) {
                 log.debug(errorMessage, e);
             }
@@ -542,13 +545,13 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             attributes.put(objClass);
             dirContext.createSubcontext(dn, attributes);
             if (log.isDebugEnabled()) {
-                log.debug("Successfully created the DN : " + dn);
+                log.debug("Successfully created the DN: " + dn);
             }
         } catch (UserStoreException e) {
-            log.error("Error obtaining directory context to create DN : " + dn, e);
+            log.error("Error obtaining directory context to create DN: " + dn, e);
             throw e;
         } catch (NamingException e) {
-            String errorMsg = "Error while creating the DN : " + dn;
+            String errorMsg = "Error while creating the DN: " + dn;
             log.error(errorMsg, e);
             throw new UserStoreException(errorMsg, e);
         } finally {
@@ -568,13 +571,13 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             dirContext = connectionSource.getContext();
             dirContext.destroySubcontext(dn);
             if (log.isDebugEnabled()) {
-                log.debug("Successfully destroyed the DN : " + dn);
+                log.debug("Successfully destroyed the DN: " + dn);
             }
         } catch (UserStoreException e) {
-            log.error("Error obtaining directory context to delete the DN : " + dn, e);
+            log.error("Error obtaining directory context to delete the DN: " + dn, e);
             throw e;
         } catch (NamingException e) {
-            String errorMsg = "Error while deleting the DN : " + dn;
+            String errorMsg = "Error while deleting the DN: " + dn;
             log.error(errorMsg, e);
             throw new UserStoreException(errorMsg, e);
         } finally {
@@ -593,21 +596,20 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             orgList = authorizationDao
                     .findAuthorizedOrganizationsList(getAuthenticatedUserId(), getTenantId(), USER_MGT_LIST_PERMISSION);
         } catch (OrganizationManagementException e) {
-            String errorMsg =
-                    "Error while retrieving authorized organizations. permission : " + USER_MGT_LIST_PERMISSION;
+            String errorMsg = "Error while retrieving authorized organizations. permission: " + USER_MGT_LIST_PERMISSION;
             log.error(errorMsg, e);
             throw new UserStoreException(errorMsg, e);
         } catch (org.wso2.carbon.user.api.UserStoreException e) {
-            String errorMsg = "Error while retrieving authenticated user id : " + getAuthenticatedUsername();
+            String errorMsg = "Error while retrieving authenticated user id: " + getAuthenticatedUsername();
             throw new UserStoreException(errorMsg, e);
         }
         if (log.isDebugEnabled()) {
-            log.debug("Initial search filter : " + searchFilter);
+            log.debug("Initial search filter: " + searchFilter);
         }
         StringJoiner joiner = new StringJoiner(")(","(", ")");
         orgList.forEach(org -> joiner.add(orgIdAttribute + "=" + org));
         String orgFilter = "(|#)".replace("#", joiner.toString());
-        // Initial filter : (&(objectClass=person)(homeEmail=nipunt@wso2.com))
+        // Initial filter: (&(objectClass=person)(homeEmail=nipunt@wso2.com))
         // org filter :
         // (|(organization=89651ae3-83fd-43eb-8fd4-7528ef69e3bd)(organization=bc26d67e-a6e1-4c16-800e-9594c08cccf5))
         // Final search filter :
@@ -622,7 +624,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         try {
             return (DirContext) mainDirContext.lookup(escapeDNForSearch(dn));
         } catch (NamingException e) {
-            String errorMessage = "Can not access the directory context for the DN : " + dn;
+            String errorMessage = "Can not access the directory context for the DN: " + dn;
             if (log.isDebugEnabled()) {
                 log.debug(errorMessage, e);
             }
@@ -635,7 +637,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
     private boolean isAuthorizedAsAdmin() throws UserStoreException {
 
         // Having this permission ('/permission/admin/manage/identity/organizationmgt/admin') assigned from the WSO2
-        // default registry based permission model allows :  listing all the organizations, listing all the users,
+        // default registry based permission model allows:  listing all the organizations, listing all the users,
         // listing all the groups and granting any permission to any user against any organization.
         try {
             AuthorizationManager authorizationManager = OrganizationUserStoreDataHolder.getInstance().
@@ -657,7 +659,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             return authorizationDao.isUserAuthorized(getAuthenticatedUserId(), organizationId, permission);
         } catch (OrganizationManagementException | org.wso2.carbon.user.api.UserStoreException e) {
             String errorMsg =
-                    "Error while authorizing the action : " + permission + ", organization id : " + organizationId;
+                    "Error while authorizing the action: " + permission + ", organization id: " + organizationId;
             log.error(errorMsg, e);
             throw new org.wso2.carbon.user.core.UserStoreException(errorMsg, e);
         }
@@ -684,7 +686,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
                     .getInstance().getRealmService().getTenantUserRealm(tenantId).getUserStoreManager();
             return userStoreManager.getUserIDFromUserName(username);
         } catch (org.wso2.carbon.user.api.UserStoreException e) {
-            String errorMsg = "Error obtaining ID for the username : " + username + ", tenant id : " + tenantId;
+            String errorMsg = "Error obtaining ID for the username: " + username + ", tenant id: " + tenantId;
             throw new org.wso2.carbon.user.api.UserStoreException(errorMsg, e);
         }
     }
@@ -725,7 +727,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         }
 
         if (log.isDebugEnabled()) {
-            log.debug("Searching in the subdirectory : " + Arrays.toString(searchBaseArray));
+            log.debug("Searching in the subdirectory: " + Arrays.toString(searchBaseArray));
         }
         List<String> returnedAttributes = Arrays.asList(searchControls.getReturningAttributes());
         NamingEnumeration<SearchResult> answer = null;
@@ -736,7 +738,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
                     pageSize));
         }
         try {
-            for (String searchBase : searchBaseArray) {
+            for (String searchBase: searchBaseArray) {
                 do {
                     List<String> tempUserList = new ArrayList<>();
                     answer = ldapContext.search(escapeDNForSearch(searchBase), searchFilter, searchControls);
@@ -854,7 +856,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
                 sb.insert(sb.length() - 1, '\\'); // add the trailing backslash if needed
             }
             if (log.isDebugEnabled()) {
-                log.debug("value after escaping special characters in " + text + " : " + sb.toString());
+                log.debug("value after escaping special characters in " + text + ": " + sb.toString());
             }
             return sb.toString();
         } else {
@@ -1082,7 +1084,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
                         }
                         attrBuffer.append(attr + userAttributeSeparator);
                         if (log.isDebugEnabled()) {
-                            log.debug(returnedAttributes.get(0) + " : " + attr);
+                            log.debug(returnedAttributes.get(0) + ": " + attr);
                         }
                     }
                 }
@@ -1122,7 +1124,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         */
         List<String> derivedUserList = new ArrayList<>();
 
-        for (ExpressionCondition expressionCondition : expressionConditions) {
+        for (ExpressionCondition expressionCondition: expressionConditions) {
             if (ExpressionAttribute.USERNAME.toString().equals(expressionCondition.getAttributeName())) {
                 derivedUserList.addAll(getMatchUserNames(expressionCondition, userNames));
             }
@@ -1142,7 +1144,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         String displayNameAttribute = realmConfig.getUserStoreProperty(LDAPConstants.DISPLAY_NAME_ATTRIBUTE);
         String[] requiredAttributes = { userNameProperty, displayNameAttribute };
 
-        for (String user : userListFromSearch) {
+        for (String user: userListFromSearch) {
             try {
                 String displayName = null;
                 String userName = null;
@@ -1224,7 +1226,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
 
         List<String> newUserNameList = new ArrayList<>();
 
-        for (String user : users) {
+        for (String user: users) {
             if (ExpressionOperation.SW.toString().equals(expressionCondition.getOperation()) && user
                     .startsWith(expressionCondition.getAttributeValue()) && !newUserNameList.contains(user)) {
                 newUserNameList.add(user);
