@@ -83,6 +83,11 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <dependency>
+            <groupId>org.wso2.carbon.identity.inbound.provisioning.scim2</groupId>
+            <artifactId>org.wso2.carbon.identity.scim2.common</artifactId>
+            <version>1.5.1</version>
+        </dependency>
     </dependencies>
 
     <build>

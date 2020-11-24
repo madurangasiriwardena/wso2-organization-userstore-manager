@@ -27,9 +27,11 @@ import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
+import org.wso2.carbon.identity.organization.userstore.scim.OrganizationSCIMUserStoreErrorResolver;
 import org.wso2.carbon.identity.organization.userstore.OrganizationUserStoreManager;
 import org.wso2.carbon.identity.organization.mgt.core.OrganizationManager;
 import org.wso2.carbon.identity.organization.mgt.core.dao.OrganizationAuthorizationDaoImpl;
+import org.wso2.carbon.identity.scim2.common.extenstion.SCIMUserStoreErrorResolver;
 import org.wso2.carbon.user.api.UserStoreManager;
 import org.wso2.carbon.user.core.service.RealmService;
 
@@ -53,6 +55,8 @@ public class OrganizationUserStoreManagerServiceComponent {
         try {
             BundleContext bundleContext = componentContext.getBundleContext();
             bundleContext.registerService(UserStoreManager.class.getName(), new OrganizationUserStoreManager(), null);
+            bundleContext.registerService(SCIMUserStoreErrorResolver.class.getName(),
+                    new OrganizationSCIMUserStoreErrorResolver(), null);
             if (log.isDebugEnabled()) {
                 log.debug("Organization user store manager component activated successfully.");
             }
