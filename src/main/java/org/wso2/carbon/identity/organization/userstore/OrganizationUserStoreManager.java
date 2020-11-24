@@ -703,7 +703,8 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         }
     }
 
-    //***************** End of newly introduced methods *************************
+    //***************** End of newly introduced methods *********************************
+
     //***************** Start of duplicated and altered private methods *****************
 
     private List<String> performLDAPSearch(LdapContext ldapContext, LDAPSearchSpecification ldapSearchSpecification,
@@ -815,6 +816,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
     }
 
     //**************** End of duplicated and altered private methods ****************
+
     //********************* Start of duplicated private methods *********************
 
     private String escapeSpecialCharactersForDN(String text) {
