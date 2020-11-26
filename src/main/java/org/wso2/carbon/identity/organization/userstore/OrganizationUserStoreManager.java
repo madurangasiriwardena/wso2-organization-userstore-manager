@@ -161,7 +161,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
                 IdentityUtil.getProperty(ORGANIZATION_ID_CLAIM_URI).trim() :
                 ORGANIZATION_ID_DEFAULT_CLAIM_URI;
         // Find respective attribute names
-        String orgNameAttribute = null, orgIdAttribute = null;
+        String orgNameAttribute, orgIdAttribute = null;
         try {
             int tenantId = PrivilegedCarbonContext.getThreadLocalCarbonContext().getTenantId();
             org.wso2.carbon.user.api.UserRealm tenantUserRealm = OrganizationUserStoreDataHolder.getInstance()
@@ -315,6 +315,11 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             orgId = patchByName && !patchById ? organizationManager.getOrganizationIdByName(orgIdentifier) :
                     orgIdentifier;
             organization = organizationManager.getOrganization(orgId, false);
+        } catch (OrganizationManagementClientException e) {
+            ErrorMessage errorMessage = ErrorMessage.ERROR_ORG_NOT_FOUND;
+            throw new UserStoreException(
+                    String.format(errorMessage.getMessage(), orgIdentifier),
+                    errorMessage.getCode(), e);
         } catch (OrganizationManagementException e) {
             ErrorMessage errorMessage = ErrorMessage.ERROR_WHILE_GETTING_ORG;
             throw new UserStoreException(errorMessage.getMessage(), errorMessage.getCode(), e);
