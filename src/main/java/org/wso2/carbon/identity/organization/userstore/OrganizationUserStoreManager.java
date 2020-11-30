@@ -267,6 +267,16 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         }
     }
 
+//    @Override
+//    public List<String> doGetUserListFromPropertiesWithID(String property, String value, String profileName)
+//            throws UserStoreException {
+//
+//        Condition condition = new ExpressionCondition("EQ", property, value);
+//        String[] users = doGetUserList(condition, profileName, -1, 1, null, null)
+//                .getUsers();
+//        return Arrays.asList(users);
+//    }
+
     @Override
     protected void doSetUserAttributesWithID(String userID, Map<String, String> processedClaimAttributes,
             String profileName) throws UserStoreException {
