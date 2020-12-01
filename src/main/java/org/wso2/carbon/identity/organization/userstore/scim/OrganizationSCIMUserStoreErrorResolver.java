@@ -71,6 +71,7 @@ public class OrganizationSCIMUserStoreErrorResolver implements SCIMUserStoreErro
             case "ORGUMGT_00019":
             case "ORGUMGT_00020":
             case "ORGUMGT_00021":
+            case "ORGUMGT_00022":
                 return HttpStatus.SC_INTERNAL_SERVER_ERROR;
             case "ORGUMGT_00002":
             case "ORGUMGT_00008":

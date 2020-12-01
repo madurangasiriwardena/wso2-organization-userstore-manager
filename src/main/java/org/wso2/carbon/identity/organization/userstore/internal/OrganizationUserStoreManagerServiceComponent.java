@@ -57,6 +57,7 @@ public class OrganizationUserStoreManagerServiceComponent {
             bundleContext.registerService(UserStoreManager.class.getName(), new OrganizationUserStoreManager(), null);
             bundleContext.registerService(SCIMUserStoreErrorResolver.class.getName(),
                     new OrganizationSCIMUserStoreErrorResolver(), null);
+            OrganizationUserStoreDataHolder.getInstance().setActive(true);
             if (log.isDebugEnabled()) {
                 log.debug("Organization user store manager component activated successfully.");
             }

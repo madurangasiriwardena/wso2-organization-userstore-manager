@@ -91,6 +91,7 @@ import static org.wso2.carbon.identity.organization.mgt.core.constant.Organizati
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.UI_EXECUTE;
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.USER_MGT_CREATE_PERMISSION;
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.USER_MGT_LIST_PERMISSION;
+import static org.wso2.carbon.identity.organization.userstore.constants.OrganizationUserStoreManagerConstants.ErrorMessage.ERROR_PERSISTING_USER;
 import static org.wso2.carbon.user.core.UserCoreConstants.RealmConfig.PROPERTY_DOMAIN_NAME;
 
 public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserStoreManager {
@@ -267,15 +268,22 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         }
     }
 
-//    @Override
-//    public List<String> doGetUserListFromPropertiesWithID(String property, String value, String profileName)
-//            throws UserStoreException {
-//
-//        Condition condition = new ExpressionCondition("EQ", property, value);
-//        String[] users = doGetUserList(condition, profileName, -1, 1, null, null)
-//                .getUsers();
-//        return Arrays.asList(users);
-//    }
+    @Override
+    public List<String> doGetUserListFromPropertiesWithID(String property, String value, String profileName)
+            throws UserStoreException {
+
+        // Server startup calls this legacy API even before this user store manager is activated.
+        // Call super when such
+        //TODO anyone who overrides this method must call super.legacyAPI as well
+        if (!OrganizationUserStoreDataHolder.getInstance().isActive()) {
+            return super.doGetUserListFromPropertiesWithID(property, value, profileName);
+        }
+        Condition condition = new ExpressionCondition("EQ", property, value);
+        // TODO fix error - legacy API expects list of user IDs whereas the below returns list of usernames
+        String[] users = doGetUserList(condition, profileName, -1, 1, null, null)
+                .getUsers();
+        return Arrays.asList(users);
+    }
 
     @Override
     protected void doSetUserAttributesWithID(String userID, Map<String, String> processedClaimAttributes,
@@ -365,6 +373,23 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
     protected void persistUser(String userID, String userName, Object credential, String[] roleList,
             Map<String, String> claims) throws UserStoreException {
 
+        // 'admin' user creation may trigger before the user store is fully activated.
+        // Call super when such
+        //TODO anyone who overrides this method must call super too
+        try {
+            if (!OrganizationUserStoreDataHolder.getInstance().isActive()) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Creating admin user : " + userName + " with super()");
+                }
+                super.persistUser(userID, userName, credential, roleList, claims);
+                return;
+            }
+        } catch (org.wso2.carbon.user.api.UserStoreException e) {
+            ErrorMessage errorMessage = ERROR_PERSISTING_USER;
+            String msg = String.format(errorMessage.getMessage(), userName);
+            log.error(msg, e);
+            throw new UserStoreException(msg, errorMessage.getCode(), e);
+        }
         OrganizationManager organizationService = OrganizationUserStoreDataHolder.getInstance().getOrganizationService();
         String orgNameClaimUri = !StringUtils.isBlank(IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI)) ?
                 IdentityUtil.getProperty(ORGANIZATION_NAME_CLAIM_URI).trim() :

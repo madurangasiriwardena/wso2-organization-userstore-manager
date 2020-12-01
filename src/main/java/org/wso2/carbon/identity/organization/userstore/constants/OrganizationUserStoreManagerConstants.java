@@ -45,7 +45,9 @@ public class OrganizationUserStoreManagerConstants {
         ERROR_SEARCHING_WITH_FILTER("ORGUMGT_00018", "Error occurred while searching for user(s) for filter: %s"),
         ERROR_EXTRACTING_USERS("ORGUMGT_00019", "Error occurred while extracting users from search results."),
         ERROR_READING_USER_INFO("ORGUMGT_00020", "Error in reading user information in the user store for the user %s"),
-        ERROR_CLAIM_FILTERING("ORGUMGT_00021", "Error occurred while doing claim filtering for user(s) with filter: %s");
+        ERROR_CLAIM_FILTERING("ORGUMGT_00021", "Error occurred while doing claim filtering for user(s) with filter: "
+                + "%s"),
+        ERROR_PERSISTING_USER("ORGUMGT_00022", "Error occurred while persisting user : %s");
 
         private final String code;
         private final String message;

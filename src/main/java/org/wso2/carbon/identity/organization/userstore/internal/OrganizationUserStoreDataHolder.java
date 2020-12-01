@@ -29,6 +29,18 @@ public class OrganizationUserStoreDataHolder {
     private OrganizationManager organizationService;
     private OrganizationAuthorizationDao organizationAuthDao;
 
+    public boolean isActive() {
+
+        return isActive;
+    }
+
+    public void setActive(boolean active) {
+
+        isActive = active;
+    }
+
+    private boolean isActive = false;
+
     public OrganizationAuthorizationDao getOrganizationAuthDao() {
         return organizationAuthDao;
     }
