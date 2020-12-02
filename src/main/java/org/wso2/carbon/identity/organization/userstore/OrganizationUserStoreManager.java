@@ -61,6 +61,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.stream.Collectors;
 
 import javax.naming.Name;
 import javax.naming.NameParser;
@@ -273,16 +274,15 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             throws UserStoreException {
 
         // Server startup calls this legacy API even before this user store manager is activated.
-        // Call super when such
+        // Call super during such scenarios
         //TODO anyone who overrides this method must call super.legacyAPI as well
         if (!OrganizationUserStoreDataHolder.getInstance().isActive()) {
             return super.doGetUserListFromPropertiesWithID(property, value, profileName);
         }
+        // Use the same API to access the LDAP even when the pagination parameters are not present in the request
         Condition condition = new ExpressionCondition("EQ", property, value);
-        // TODO fix error - legacy API expects list of user IDs whereas the below returns list of usernames
-        String[] users = doGetUserList(condition, profileName, -1, 1, null, null)
-                .getUsers();
-        return Arrays.asList(users);
+        UniqueIDPaginatedSearchResult result = doGetUserListWithID(condition, profileName, -1, 1, null, null);
+        return result.getUsers().stream().map(user -> user.getUserID()).collect(Collectors.toList());
     }
 
     @Override
@@ -375,7 +375,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
 
         // 'admin' user creation may trigger before the user store is fully activated.
         // Call super when such
-        //TODO anyone who overrides this method must call super too
+        // TODO anyone who overrides this method must call super too
         try {
             if (!OrganizationUserStoreDataHolder.getInstance().isActive()) {
                 if (log.isDebugEnabled()) {
