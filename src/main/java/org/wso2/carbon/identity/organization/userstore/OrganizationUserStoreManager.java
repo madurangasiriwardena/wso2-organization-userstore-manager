@@ -77,6 +77,7 @@ import javax.naming.directory.SearchControls;
 import javax.naming.directory.SearchResult;
 import javax.naming.ldap.Control;
 import javax.naming.ldap.LdapContext;
+import javax.naming.ldap.LdapName;
 import javax.naming.ldap.PagedResultsControl;
 import javax.naming.ldap.PagedResultsResponseControl;
 import javax.naming.ldap.SortControl;
@@ -546,19 +547,11 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
                 newDn = prefix != null ? prefix.concat(",").concat(newDn): null;
             }
             if (newDn != null || oldDn != null) {
-                // Get existing user attributes.
-                Attributes attributes = dirContext.getAttributes(oldDn);
-
-                // Create a new user entry in new ou using existing user attributes.
-                dirContext.createSubcontext(newDn, attributes);
-
-                // Delete old ou user entry.
-                dirContext.destroySubcontext(oldDn);
-
-                // Clear user cache
-                String username = (String) attributes.get(LDAPConstants.UID).get();
-                removeFromUserCache(username);
-
+                // Move user
+                dirContext.rename(newDn, oldDn);
+                String username = getUserNameFromUserID(userID);
+                // Update the DN cache
+                putToUserCache(username, new LdapName(newDn));
             } else {
                 throw new UserStoreException(ErrorMessage.ERROR_RESOLVING_DN.getMessage(),
                         ErrorMessage.ERROR_RESOLVING_DN.getCode());
