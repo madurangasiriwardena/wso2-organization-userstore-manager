@@ -287,6 +287,14 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
     }
 
     @Override
+    protected String doGetUserIDFromUserNameWithID(String userName) throws UserStoreException {
+
+        //TODO check if overriding this method and its private method will cause any issues
+        String userNameProperty = realmConfig.getUserStoreProperty(LDAPConstants.USER_NAME_ATTRIBUTE);
+        return getUserIDFromProperty(userNameProperty, userName);
+    }
+
+    @Override
     protected void doSetUserAttributesWithID(String userID, Map<String, String> processedClaimAttributes,
             String profileName) throws UserStoreException {
 
@@ -846,6 +854,33 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             JNDIUtil.closeNamingEnumeration(answer);
         }
         return users;
+    }
+
+    private String getUserIDFromProperty(String property, String claimValue) throws UserStoreException {
+
+        try {
+            // Call super method to avoid recursive loop
+            List<String> userIds = super.doGetUserListFromPropertiesWithID(property, claimValue, null);
+            if (userIds.isEmpty()) {
+                if (log.isDebugEnabled()) {
+                    log.debug(
+                            "No UserID found for the property: " + property + ", value: " + claimValue + ", in domain:"
+                                    + " " + getMyDomainName());
+                }
+                return null;
+            } else if (userIds.size() > 1) {
+                throw new UserStoreException(
+                        "Invalid scenario. Multiple users cannot be found for the given value: " + claimValue
+                                + "of the " + "property: " + property);
+            } else {
+                // username can have only one userId. Take the first element.
+                return userIds.get(0);
+            }
+        } catch (org.wso2.carbon.user.api.UserStoreException e) {
+            throw new UserStoreException(
+                    "Error occurred while retrieving the userId of domain : " + getMyDomainName() + " and " + "property"
+                            + property + " value: " + claimValue, e);
+        }
     }
 
     //**************** End of duplicated and altered private methods ****************
