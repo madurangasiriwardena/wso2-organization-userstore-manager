@@ -525,40 +525,15 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
 
         // Get the LDAP Directory context.
         DirContext dirContext = this.connectionSource.getContext();
-        // Search the relevant user entry by user name.
-        String userSearchBase = realmConfig.getUserStoreProperty(LDAPConstants.USER_SEARCH_BASE);
-        String userSearchFilter = realmConfig.getUserStoreProperty(LDAPConstants.USER_ID_SEARCH_FILTER);
-        String userIDAttribute = realmConfig.getUserStoreProperty(LDAPConstants.USER_ID_ATTRIBUTE);
-
-        userSearchFilter = userSearchFilter.replace(LDAPConstants.UID, userIDAttribute);
-
-        if (OBJECT_GUID.equalsIgnoreCase(userIDAttribute) && isBinaryUserAttribute(userIDAttribute)) {
-            userID = transformUUIDToObjectGUID(userID);
-            userSearchFilter = userSearchFilter.replace("?", userID);
-        } else {
-            userSearchFilter = userSearchFilter.replace("?", escapeSpecialCharactersForFilter(userID));
-        }
-
-        SearchControls searchControls = new SearchControls();
-        searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
-        searchControls.setReturningAttributes(null);
-
-        NamingEnumeration<SearchResult> returnedResultList = null;
+        String username = getUserNameFromUserID(userID);
+        String currentDn = getNameInSpaceForUsernameFromLDAP(username);
+        String prefix = StringUtils.contains(currentDn, ',') ? currentDn.substring(0, currentDn.indexOf(",")) : null;
+        newDn = prefix != null ? prefix.concat(",").concat(newDn) : null;
         try {
-            returnedResultList = dirContext.search(escapeDNForSearch(userSearchBase), userSearchFilter, searchControls);
-            String oldDn = null;
-            String prefix;
-            // Assume only one user is returned from the search.
-            if (returnedResultList.hasMore()) {
-                oldDn = returnedResultList.next().getNameInNamespace();
-                prefix = StringUtils.contains(oldDn, ',') ? oldDn.substring( 0, oldDn.indexOf(",")): null;
-                newDn = prefix != null ? prefix.concat(",").concat(newDn): null;
-            }
-            if (newDn != null || oldDn != null) {
+            if (newDn != null || currentDn != null) {
                 // Move user
-                dirContext.rename(newDn, oldDn);
-                String username = getUserNameFromUserID(userID);
-                // Update the DN cache
+                dirContext.rename(newDn, currentDn);
+                // Update the user DN cache
                 putToUserCache(username, new LdapName(newDn));
             } else {
                 throw new UserStoreException(ErrorMessage.ERROR_RESOLVING_DN.getMessage(),
@@ -571,9 +546,10 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
                 log.debug(errorMsg);
             }
             throw new UserStoreException(errorMsg, errorMessage.getCode(), e);
-        }
-        finally {
-            JNDIUtil.closeNamingEnumeration(returnedResultList);
+        } finally {
+            if (dirContext != null) {
+                JNDIUtil.closeContext(dirContext);
+            }
         }
     }
 
