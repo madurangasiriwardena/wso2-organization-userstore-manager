@@ -276,7 +276,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
 
         // Server startup calls this legacy API even before this user store manager is activated.
         // Call super during such scenarios
-        //TODO anyone who overrides this method must call super.legacyAPI as well
+        // Child classes who override this method should duplicate the below logic
         if (!OrganizationUserStoreDataHolder.getInstance().isActive()) {
             return super.doGetUserListFromPropertiesWithID(property, value, profileName);
         }
@@ -289,7 +289,6 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
     @Override
     protected String doGetUserIDFromUserNameWithID(String userName) throws UserStoreException {
 
-        //TODO check if overriding this method and its private method will cause any issues
         String userNameProperty = realmConfig.getUserStoreProperty(LDAPConstants.USER_NAME_ATTRIBUTE);
         return getUserIDFromProperty(userNameProperty, userName);
     }
@@ -384,7 +383,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
 
         // 'admin' user creation may trigger before the user store is fully activated.
         // Call super when such
-        // TODO anyone who overrides this method must call super too
+        // Child classes who override this method must duplicate the below logic
         try {
             if (!OrganizationUserStoreDataHolder.getInstance().isActive()) {
                 if (log.isDebugEnabled()) {
@@ -809,18 +808,19 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             // Can be due to referrals in AD. So just ignore error.
             if (isIgnorePartialResultException()) {
                 if (log.isDebugEnabled()) {
-                    log.debug(String.format("Error occurred while searching for user(s) for filter: %s", searchFilter));
+                    log.debug(String.format("Error occurred while searching for user(s) for filter: %s",
+                            searchFilter), e);
                 }
             } else {
                 ErrorMessage errorMessage = ErrorMessage.ERROR_SEARCHING_WITH_FILTER;
                 String msg = String.format(errorMessage.getMessage(), searchFilter);
-                log.error(msg);
+                log.error(msg, e);
                 throw new UserStoreException(msg, errorMessage.getCode(), e);
             }
         } catch (NamingException e) {
             ErrorMessage errorMessage = ErrorMessage.ERROR_SEARCHING_WITH_FILTER;
             String msg = String.format(errorMessage.getMessage(), searchFilter);
-            log.error(msg);
+            log.error(msg, e);
             throw new UserStoreException(msg, errorMessage.getCode(), e);
         } catch (IOException e) {
             ErrorMessage errorMessage = ErrorMessage.ERROR_WHILE_PAGINATED_SEARCH;
@@ -1104,7 +1104,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             }
         } catch (NamingException e) {
             ErrorMessage errorMessage = ErrorMessage.ERROR_EXTRACTING_USERS;
-            log.error(errorMessage.getMessage());
+            log.error(errorMessage.getMessage(), e);
             throw new UserStoreException(errorMessage.getMessage(), errorMessage.getCode(), e);
         } finally {
             JNDIUtil.closeNamingEnumeration(attrs);
@@ -1170,7 +1170,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             }
         } catch (NamingException e) {
             ErrorMessage errorMessage = ErrorMessage.ERROR_EXTRACTING_USERS;
-            log.error(errorMessage.getMessage());
+            log.error(errorMessage.getMessage(), e);
             throw new UserStoreException(errorMessage.getMessage(), errorMessage.getCode(), e);
         } finally {
             // Close the naming enumeration and free up resources
@@ -1242,7 +1242,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             } catch (NamingException e) {
                 ErrorMessage errorMessage = ErrorMessage.ERROR_READING_USER_INFO;
                 String msg = String.format(errorMessage.getMessage(), user);
-                log.error(msg);
+                log.error(msg, e);
                 throw new UserStoreException(msg, errorMessage.getCode(), e);
             }
         }
@@ -1278,7 +1278,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         } catch (NamingException e) {
             ErrorMessage errorMessage = ErrorMessage.ERROR_CLAIM_FILTERING;
             String msg = String.format(errorMessage.getMessage(), claimSearch.getSearchFilterQuery());
-            log.error(msg);
+            log.error(msg, e);
             throw new UserStoreException(msg, errorMessage.getCode(), e);
         } finally {
             JNDIUtil.closeContext(claimSearchDirContext);
