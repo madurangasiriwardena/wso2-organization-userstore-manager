@@ -700,6 +700,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
 
     private String getAuthenticatedUsername() {
 
+        //TODO check for authentication requests ?
         return PrivilegedCarbonContext.getThreadLocalCarbonContext().getUsername();
     }
 
