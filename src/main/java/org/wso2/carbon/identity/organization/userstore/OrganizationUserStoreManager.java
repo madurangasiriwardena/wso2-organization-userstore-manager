@@ -747,7 +747,8 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         } else {
             // admin users can do full tree search
             // Non-admin users can only search in allowed organizations
-            if (!isAuthorizedAsAdmin()) {
+            // Threads without an authenticated user, are also eligible for a full tree search
+            if (StringUtils.isNotBlank(getAuthenticatedUsername()) && !isAuthorizedAsAdmin()) {
                 // Alter the search filter to include authorized org IDs as search conditions
                 searchFilter = getAuthorizedSearchFilter(searchFilter, orgIdAttribute);
             }
