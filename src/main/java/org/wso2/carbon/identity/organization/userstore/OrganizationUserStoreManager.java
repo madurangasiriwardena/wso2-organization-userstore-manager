@@ -619,6 +619,11 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         try {
             orgList = authorizationDao
                     .findAuthorizedOrganizationsList(getAuthenticatedUserId(), getTenantId(), USER_MGT_LIST_PERMISSION);
+            // If user doesn't have user list permission over any organization, do not change the filter
+            // This is to cater JVM initiated user listing requests. Tomcat valve is throttling such SCIM requests.
+            if (orgList.isEmpty()) {
+                return searchFilter;
+            }
         } catch (OrganizationManagementException e) {
             ErrorMessage errorMessage = ErrorMessage.ERROR_GETTING_AUTHORIZED_ORG;
             String errorMsg = String.format(errorMessage.getMessage(), USER_MGT_LIST_PERMISSION);
