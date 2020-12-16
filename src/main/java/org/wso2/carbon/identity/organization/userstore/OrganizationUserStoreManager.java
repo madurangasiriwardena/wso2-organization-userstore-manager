@@ -95,6 +95,7 @@ import static org.wso2.carbon.identity.organization.mgt.core.constant.Organizati
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.USER_MGT_LIST_PERMISSION;
 import static org.wso2.carbon.identity.organization.userstore.constants.OrganizationUserStoreManagerConstants.ErrorMessage.ERROR_PERSISTING_USER;
 import static org.wso2.carbon.user.core.UserCoreConstants.RealmConfig.PROPERTY_DOMAIN_NAME;
+import static org.wso2.carbon.user.core.UserStoreConfigConstants.maxUserNameListLength;
 
 public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserStoreManager {
 
@@ -282,7 +283,9 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         }
         // Use the same API to access the LDAP even when the pagination parameters are not present in the request
         Condition condition = new ExpressionCondition("EQ", property, value);
-        UniqueIDPaginatedSearchResult result = doGetUserListWithID(condition, profileName, -1, 1, null, null);
+        int maxUserListLength =
+                Integer.valueOf(this.getRealmConfiguration().getUserStoreProperty(maxUserNameListLength));
+        UniqueIDPaginatedSearchResult result = doGetUserListWithID(condition, profileName, maxUserListLength, 1, null, null);
         return result.getUsers().stream().map(user -> user.getUserID()).collect(Collectors.toList());
     }
 
