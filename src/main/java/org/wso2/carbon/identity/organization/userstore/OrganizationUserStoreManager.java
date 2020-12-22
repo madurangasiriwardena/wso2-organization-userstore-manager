@@ -84,6 +84,7 @@ import javax.naming.ldap.SortControl;
 import org.wso2.carbon.identity.organization.userstore.constants.OrganizationUserStoreManagerConstants.ErrorMessage;
 
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.DN;
+import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.FILTER_USERS_BY_ORG_NAME;
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.ORGANIZATION_ADMIN_PERMISSION;
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.ORGANIZATION_ID_CLAIM_URI;
 import static org.wso2.carbon.identity.organization.mgt.core.constant.OrganizationMgtConstants.ORGANIZATION_ID_DEFAULT_CLAIM_URI;
@@ -165,7 +166,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
                 IdentityUtil.getProperty(ORGANIZATION_ID_CLAIM_URI).trim() :
                 ORGANIZATION_ID_DEFAULT_CLAIM_URI;
         // Find respective attribute names
-        String orgNameAttribute, orgIdAttribute = null;
+        String orgNameAttribute, orgIdAttribute;
         try {
             int tenantId = PrivilegedCarbonContext.getThreadLocalCarbonContext().getTenantId();
             org.wso2.carbon.user.api.UserRealm tenantUserRealm = OrganizationUserStoreDataHolder.getInstance()
@@ -244,14 +245,15 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         List<String> users;
         List<String> ldapUsers = new ArrayList<>();
         String userNameAttribute = realmConfig.getUserStoreProperty(LDAPConstants.USER_NAME_ATTRIBUTE);
+        boolean filterByOrgName = Boolean.valueOf(IdentityUtil.getProperty(FILTER_USERS_BY_ORG_NAME));
+        String orgIdentifierAttribute = filterByOrgName ? orgNameAttribute : orgIdAttribute;
         try {
             ldapContext.setRequestControls(new Control[] {
                     new PagedResultsControl(pageSize, Control.CRITICAL),
                     new SortControl(userNameAttribute, Control.NONCRITICAL)
             });
-            users = performLDAPSearch(ldapContext, ldapSearchSpecification, orgSearchBase, orgIdAttribute, pageSize,
-                    offset,
-                    expressionConditions);
+            users = performLDAPSearch(ldapContext, ldapSearchSpecification, orgSearchBase, orgIdentifierAttribute,
+                    pageSize, offset, expressionConditions, filterByOrgName);
             for (String ldapUser: users) {
                 ldapUsers.add(UserCoreUtil.addDomainToName(ldapUser, getMyDomainName()));
             }
@@ -614,14 +616,16 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         }
     }
 
-    private String getAuthorizedSearchFilter(String searchFilter, String orgIdAttribute) throws UserStoreException {
+    private String getAuthorizedSearchFilter(String searchFilter, String orgIdentifierAttribute,
+            boolean filterByOrgName) throws UserStoreException {
 
         OrganizationAuthorizationDao authorizationDao =
                 OrganizationUserStoreDataHolder.getInstance().getOrganizationAuthDao();
         List<String> orgList;
         try {
             orgList = authorizationDao
-                    .findAuthorizedOrganizationsList(getAuthenticatedUserId(), getTenantId(), USER_MGT_LIST_PERMISSION);
+                    .findAuthorizedOrganizationsList(getAuthenticatedUserId(), getTenantId(),
+                            USER_MGT_LIST_PERMISSION, filterByOrgName);
             // If user doesn't have user list permission over any organization, do not change the filter
             // This is to cater JVM initiated user listing requests. Tomcat valve is throttling such SCIM requests.
             if (orgList.isEmpty()) {
@@ -642,7 +646,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             log.debug("Initial search filter: " + searchFilter);
         }
         StringJoiner joiner = new StringJoiner(")(","(", ")");
-        orgList.forEach(org -> joiner.add(orgIdAttribute + "=" + org));
+        orgList.forEach(org -> joiner.add(orgIdentifierAttribute + "=" + org));
         String orgFilter = "(|#)".replace("#", joiner.toString());
         // Initial filter: (&(objectClass=person)(homeEmail=nipunt@wso2.com))
         // org filter :
@@ -733,8 +737,8 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
     //***************** Start of duplicated and altered private methods *****************
 
     private List<String> performLDAPSearch(LdapContext ldapContext, LDAPSearchSpecification ldapSearchSpecification,
-            String orgSearchBase, String orgIdAttribute, int pageSize, int offset,
-            List<ExpressionCondition> expressionConditions)
+            String orgSearchBase, String orgIdentifierAttribute, int pageSize, int offset,
+            List<ExpressionCondition> expressionConditions, boolean filterByOrgName)
             throws UserStoreException {
 
         byte[] cookie;
@@ -759,7 +763,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             // Threads without an authenticated user, are also eligible for a full tree search
             if (StringUtils.isNotBlank(getAuthenticatedUsername()) && !isAuthorizedAsAdmin()) {
                 // Alter the search filter to include authorized org IDs as search conditions
-                searchFilter = getAuthorizedSearchFilter(searchFilter, orgIdAttribute);
+                searchFilter = getAuthorizedSearchFilter(searchFilter, orgIdentifierAttribute, filterByOrgName);
             }
             // Use the default search base (Search will NOT be limited to one level)
             searchBaseArray = ldapSearchSpecification.getSearchBases().split("#");
