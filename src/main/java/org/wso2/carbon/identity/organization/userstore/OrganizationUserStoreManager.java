@@ -616,7 +616,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         }
     }
 
-    private String getAuthorizedSearchFilter(String searchFilter, String orgIdentifierAttribute,
+    protected String getAuthorizedSearchFilter(String searchFilter, String orgIdentifierAttribute,
             boolean filterByOrgName) throws UserStoreException {
 
         OrganizationAuthorizationDao authorizationDao =
@@ -673,7 +673,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         }
     }
 
-    private boolean isAuthorizedAsAdmin() throws UserStoreException {
+    protected boolean isAuthorizedAsAdmin() throws UserStoreException {
 
         // Having this permission ('/permission/admin/manage/identity/organizationmgt/admin') assigned from the WSO2
         // default registry based permission model allows:  listing all the organizations, listing all the users,
@@ -940,14 +940,14 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         }
     }
 
-    private List<ExpressionCondition> getExpressionConditions(Condition condition) {
+    protected List<ExpressionCondition> getExpressionConditions(Condition condition) {
 
         List<ExpressionCondition> expressionConditions = new ArrayList<>();
         getExpressionConditionsAsList(condition, expressionConditions);
         return expressionConditions;
     }
 
-    private int getLimit(int limit, boolean isMemberShipPropertyFound) {
+    protected int getLimit(int limit, boolean isMemberShipPropertyFound) {
 
         int givenMax;
 
@@ -967,7 +967,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         return limit;
     }
 
-    private int getOffset(int offset) {
+    protected int getOffset(int offset) {
 
         if (offset <= 0) {
             offset = 0;
@@ -992,7 +992,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         }
     }
 
-    private List<String> getUserListFromSearch(boolean isGroupFiltering, List<String> returnedAttributes,
+    protected List<String> getUserListFromSearch(boolean isGroupFiltering, List<String> returnedAttributes,
             NamingEnumeration<SearchResult> answer, boolean isSingleAttributeFilter) throws UserStoreException {
 
         List<String> tempUserList;
@@ -1004,7 +1004,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         return tempUserList;
     }
 
-    private boolean isSingleAttributeFilterOperation(List<ExpressionCondition> expressionConditions) {
+    protected boolean isSingleAttributeFilterOperation(List<ExpressionCondition> expressionConditions) {
 
         /*
         The size of the expression condition is used to verify the type of filter operation since the up
@@ -1014,7 +1014,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         return (expressionConditions.size() == 1);
     }
 
-    private List<String> membershipGroupFilterPostProcessing(boolean isUsernameFiltering, boolean isClaimFiltering,
+    protected List<String> membershipGroupFilterPostProcessing(boolean isUsernameFiltering, boolean isClaimFiltering,
             List<ExpressionCondition> expressionConditions, List<String> tempUserList) throws UserStoreException {
 
         List<String> users;
@@ -1030,7 +1030,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         return users;
     }
 
-    private void generatePaginatedUserList(int pageIndex, int offset, int pageSize, List<String> tempUserList,
+    protected void generatePaginatedUserList(int pageIndex, int offset, int pageSize, List<String> tempUserList,
             List<String> users) {
 
         int needMore;
@@ -1052,7 +1052,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         }
     }
 
-    private static byte[] parseControls(Control[] controls) {
+    protected static byte[] parseControls(Control[] controls) {
 
         byte[] cookie = null;
         // Handle the paged results control response
@@ -1369,7 +1369,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         }
     }
 
-    private boolean isIgnorePartialResultException() {
+    protected boolean isIgnorePartialResultException() {
 
         if (PROPERTY_REFERRAL_IGNORE.equals(realmConfig.getUserStoreProperty(LDAPConstants.PROPERTY_REFERRAL))) {
             return true;
