@@ -513,7 +513,10 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         try {
             if (newDn != null || currentDn != null) {
                 // Move user
-                dirContext.rename(newDn, currentDn);
+                if (log.isDebugEnabled()) {
+                    log.info("Moving user. Current DN : " + currentDn + ", new DN : " + newDn);
+                }
+                dirContext.rename(currentDn, newDn);
                 // Update the user DN cache
                 putToUserCache(username, new LdapName(newDn));
             } else {
