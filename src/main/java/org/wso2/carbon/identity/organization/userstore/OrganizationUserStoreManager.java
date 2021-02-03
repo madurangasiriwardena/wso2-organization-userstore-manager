@@ -527,7 +527,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             ErrorMessage errorMessage = ErrorMessage.ERROR_WHILE_ORG_MOVE;
             String errorMsg = String.format(errorMessage.getMessage(), userID);
             if (log.isDebugEnabled()) {
-                log.debug(errorMsg);
+                log.debug(errorMsg, e);
             }
             throw new UserStoreException(errorMsg, errorMessage.getCode(), e);
         } finally {
