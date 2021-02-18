@@ -112,6 +112,7 @@
                     <preparationGoals>clean install</preparationGoals>
                     <tagNameFormat>${project.version}</tagNameFormat>
                     <autoVersionSubmodules>true</autoVersionSubmodules>
+                    <arguments>-Dmaven.javadoc.skip=true</arguments>
                 </configuration>
             </plugin>
             <plugin>
