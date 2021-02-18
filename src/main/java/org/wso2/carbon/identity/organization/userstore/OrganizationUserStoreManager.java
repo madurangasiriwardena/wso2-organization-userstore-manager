@@ -32,6 +32,7 @@ import org.wso2.carbon.identity.organization.mgt.core.exception.OrganizationMana
 import org.wso2.carbon.identity.organization.mgt.core.model.Organization;
 import org.wso2.carbon.identity.organization.mgt.core.model.UserStoreConfig;
 import org.wso2.carbon.identity.organization.mgt.core.usermgt.AbstractOrganizationMgtUserStoreManager;
+import org.wso2.carbon.identity.organization.userstore.util.Utils;
 import org.wso2.carbon.user.api.AuthorizationManager;
 import org.wso2.carbon.user.api.RealmConfiguration;
 import org.wso2.carbon.user.core.UserCoreConstants;
@@ -501,8 +502,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
     }
 
     //***************** Start of newly introduced methods *****************
-
-    private void moveUser(String userID, String newDn) throws UserStoreException {
+    protected void moveUser(String userID, String newDn) throws UserStoreException {
 
         // Get the LDAP Directory context.
         DirContext dirContext = this.connectionSource.getContext();
@@ -540,7 +540,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
     /**
      * {@inheritDoc}
      */
-    public void createOu(String dn) throws UserStoreException {
+    public void createOu(String dn, String rdn) throws UserStoreException {
 
         DirContext dirContext = null;
         try {
@@ -550,6 +550,15 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             objClass.add("top");
             objClass.add("organizationalUnit");
             attributes.put(objClass);
+            // Replace RDN from the DN with a temporary place holder '#'
+            dn = StringUtils.replaceOnce(dn, "=".concat(rdn), "#");
+            // Sanitize RDN
+            rdn = Utils.escapeSpecialCharacters(rdn);
+            // Construct sanitized DN
+            dn = StringUtils.replaceOnce(dn, "#", "=".concat(rdn));
+            if (log.isDebugEnabled()) {
+                log.debug("Creating the DN: " + dn);
+            }
             dirContext.createSubcontext(dn, attributes);
             if (log.isDebugEnabled()) {
                 log.debug("Successfully created the DN: " + dn);
