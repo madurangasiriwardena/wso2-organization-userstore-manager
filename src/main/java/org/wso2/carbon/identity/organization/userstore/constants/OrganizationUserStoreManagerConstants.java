@@ -20,6 +20,8 @@ package org.wso2.carbon.identity.organization.userstore.constants;
 
 public class OrganizationUserStoreManagerConstants {
 
+    public static final String[] specialChars = {"\\", ",", "+", "\"",  "<", ">", ";", "#"};
+
     public enum ErrorMessage {
 
         ERROR_OBTAINING_CLAIMS("ORGUMGT_00001", "Error obtaining organization claim/attribute mappings"),

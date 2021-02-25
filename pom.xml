@@ -15,17 +15,28 @@
   ~  limitations under the License.
   -->
 
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
     <groupId>org.wso2.carbon.identity.organization.userstore</groupId>
     <artifactId>org.wso2.carbon.identity.organization.userstore.manager</artifactId>
-    <version>1.0</version>
-
+    <version>0.24-SNAPSHOT</version>
     <name>wso2-organization-userstore-manager</name>
     <url>http://www.wso2.com</url>
     <modelVersion>4.0.0</modelVersion>
     <packaging>bundle</packaging>
+
+    <parent>
+        <groupId>org.wso2</groupId>
+        <artifactId>wso2</artifactId>
+        <version>1.2</version>
+    </parent>
+
+    <scm>
+        <url>https://github.com/nipunthathsara/wso2-organization-userstore-manager</url>
+        <developerConnection>scm:git:https://github.com/nipunthathsara/wso2-organization-userstore-manager</developerConnection>
+        <connection>scm:git:https://github.com/nipunthathsara/wso2-organization-userstore-manager</connection>
+        <tag>HEAD</tag>
+    </scm>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -35,6 +46,7 @@
         <osgi.services.version>3.5.100.v20160504-1419</osgi.services.version>
         <commons.logging.version>1.2</commons.logging.version>
         <org.apache.felix.scr.ds-annotations.version>1.2.10</org.apache.felix.scr.ds-annotations.version>
+        <identity.inbound.provisioning.scim2.version>1.5.1</identity.inbound.provisioning.scim2.version>
         <kernel.version>4.6.0</kernel.version>
     </properties>
 
@@ -86,12 +98,22 @@
         <dependency>
             <groupId>org.wso2.carbon.identity.inbound.provisioning.scim2</groupId>
             <artifactId>org.wso2.carbon.identity.scim2.common</artifactId>
-            <version>1.5.1</version>
+            <version>${identity.inbound.provisioning.scim2.version}</version>
         </dependency>
     </dependencies>
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-release-plugin</artifactId>
+                <configuration>
+                    <preparationGoals>clean install</preparationGoals>
+                    <tagNameFormat>${project.version}</tagNameFormat>
+                    <autoVersionSubmodules>true</autoVersionSubmodules>
+                    <arguments>-Dmaven.javadoc.skip=true</arguments>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.apache.felix</groupId>
                 <artifactId>maven-scr-plugin</artifactId>
@@ -106,7 +128,7 @@
                         <Bundle-SymbolicName>${project.artifactId}</Bundle-SymbolicName>
                         <Bundle-Name>${project.artifactId}</Bundle-Name>
                         <Private-Package>org.wso2.carbon.identity.organization.userstore.internal</Private-Package>
-                        <Import-Package></Import-Package>
+                        <Import-Package />
                         <Export-Package>
                             !org.wso2.carbon.identity.organization.userstore.internal,
                             org.wso2.carbon.identity.organization.userstore.*; version="${project.version}",

@@ -32,6 +32,7 @@ import org.wso2.carbon.identity.organization.mgt.core.exception.OrganizationMana
 import org.wso2.carbon.identity.organization.mgt.core.model.Organization;
 import org.wso2.carbon.identity.organization.mgt.core.model.UserStoreConfig;
 import org.wso2.carbon.identity.organization.mgt.core.usermgt.AbstractOrganizationMgtUserStoreManager;
+import org.wso2.carbon.identity.organization.userstore.util.Utils;
 import org.wso2.carbon.user.api.AuthorizationManager;
 import org.wso2.carbon.user.api.RealmConfiguration;
 import org.wso2.carbon.user.core.UserCoreConstants;
@@ -501,7 +502,6 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
     }
 
     //***************** Start of newly introduced methods *****************
-
     protected void moveUser(String userID, String newDn) throws UserStoreException {
 
         // Get the LDAP Directory context.
@@ -527,7 +527,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             ErrorMessage errorMessage = ErrorMessage.ERROR_WHILE_ORG_MOVE;
             String errorMsg = String.format(errorMessage.getMessage(), userID);
             if (log.isDebugEnabled()) {
-                log.debug(errorMsg);
+                log.debug(errorMsg, e);
             }
             throw new UserStoreException(errorMsg, errorMessage.getCode(), e);
         } finally {
@@ -540,7 +540,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
     /**
      * {@inheritDoc}
      */
-    public void createOu(String dn) throws UserStoreException {
+    public void createOu(String dn, String rdn) throws UserStoreException {
 
         DirContext dirContext = null;
         try {
@@ -550,6 +550,15 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             objClass.add("top");
             objClass.add("organizationalUnit");
             attributes.put(objClass);
+            // Replace RDN from the DN with a temporary place holder '#'
+            dn = StringUtils.replaceOnce(dn, "=".concat(rdn), "#");
+            // Sanitize RDN
+            rdn = Utils.escapeSpecialCharacters(rdn);
+            // Construct sanitized DN
+            dn = StringUtils.replaceOnce(dn, "#", "=".concat(rdn));
+            if (log.isDebugEnabled()) {
+                log.debug("Creating the DN: " + dn);
+            }
             dirContext.createSubcontext(dn, attributes);
             if (log.isDebugEnabled()) {
                 log.debug("Successfully created the DN: " + dn);
@@ -637,7 +646,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         return searchFilter.substring(0, searchFilter.lastIndexOf(")")).concat(orgFilter).concat(")");
     }
 
-    protected DirContext getOrganizationDirectoryContext(String dn) throws UserStoreException {
+    private DirContext getOrganizationDirectoryContext(String dn) throws UserStoreException {
 
         DirContext mainDirContext = this.connectionSource.getContext();
         try {
@@ -668,7 +677,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         }
     }
 
-    protected boolean isAuthorized(String organizationId, String permission)
+    private boolean isAuthorized(String organizationId, String permission)
             throws org.wso2.carbon.user.core.UserStoreException {
 
         // To create a user inside an organization
@@ -690,7 +699,7 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         return getUserIDFromUserName(getAuthenticatedUsername(), getTenantId());
     }
 
-    protected String getAuthenticatedUsername() {
+    private String getAuthenticatedUsername() {
 
         //TODO check for authentication requests ?
         return PrivilegedCarbonContext.getThreadLocalCarbonContext().getUsername();
