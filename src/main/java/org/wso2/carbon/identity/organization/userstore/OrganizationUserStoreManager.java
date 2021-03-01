@@ -18,6 +18,8 @@
 
 package org.wso2.carbon.identity.organization.userstore;
 
+import com.sun.jndi.ldap.ctl.VirtualListViewControl;
+import com.sun.jndi.ldap.ctl.VirtualListViewResponseControl;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
@@ -53,6 +55,7 @@ import org.wso2.carbon.user.core.util.JNDIUtil;
 import org.wso2.carbon.user.core.util.UserCoreUtil;
 
 import java.io.IOException;
+import java.lang.reflect.UndeclaredThrowableException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -225,16 +228,28 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
         LdapContext ldapContext = (LdapContext) dirContext;
         List<User> users;
         List<String> ldapUsers = new ArrayList<>();
+
+        String isVlvEnabled = realmConfig.getUserStoreProperty("VLVEnabled");
+        String vlvMatchingRule = realmConfig.getUserStoreProperty("VLVMatchingRule");
         String userNameAttribute = realmConfig.getUserStoreProperty(LDAPConstants.USER_NAME_ATTRIBUTE);
         boolean filterByOrgName = Boolean.valueOf(IdentityUtil.getProperty(FILTER_USERS_BY_ORG_NAME));
         String orgIdentifierAttribute = filterByOrgName ? orgNameAttribute : orgIdAttribute;
         try {
-            ldapContext.setRequestControls(new Control[] {
-                    new PagedResultsControl(pageSize, Control.CRITICAL),
-                    new SortControl(userNameAttribute, Control.NONCRITICAL)
-            });
-            users = performLDAPSearch(ldapContext, ldapSearchSpecification, orgSearchBase, orgIdentifierAttribute,
-                    pageSize, offset, expressionConditions, filterByOrgName);
+
+            if (Boolean.parseBoolean(isVlvEnabled)) {
+                setVlvRequestControls(offset, pageSize, ldapContext, vlvMatchingRule, userNameAttribute);
+                users = performLDAPVlvSearch(ldapContext, ldapSearchSpecification, orgSearchBase,
+                        orgIdentifierAttribute,
+                        pageSize, offset, expressionConditions, filterByOrgName);
+            } else {
+                ldapContext.setRequestControls(new Control[]{
+                        new PagedResultsControl(pageSize, Control.CRITICAL),
+                        new SortControl(userNameAttribute, Control.NONCRITICAL)
+                });
+                users = performLDAPSearch(ldapContext, ldapSearchSpecification, orgSearchBase, orgIdentifierAttribute,
+                        pageSize, offset, expressionConditions, filterByOrgName);
+            }
+
             result.setUsers(users);
             return result;
         } catch (NamingException e) {
@@ -249,6 +264,33 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             JNDIUtil.closeContext(dirContext);
             JNDIUtil.closeContext(ldapContext);
         }
+    }
+
+    private void setVlvRequestControls(int offset, int pageSize, LdapContext ldapContext, String vlvMatchingRule, String userNameAttribute) throws IOException, NamingException {
+
+        com.sun.jndi.ldap.ctl.SortKey sortKey;
+        if (StringUtils.isNotEmpty(vlvMatchingRule)) {
+            sortKey = new com.sun.jndi.ldap.ctl.SortKey(userNameAttribute, true, vlvMatchingRule);
+        } else {
+            sortKey = new com.sun.jndi.ldap.ctl.SortKey(userNameAttribute);
+        }
+        com.sun.jndi.ldap.ctl.SortKey[] sortKeys = new com.sun.jndi.ldap.ctl.SortKey[1];
+        sortKeys[0] = sortKey;
+
+        /* Sort Control is required for VLV to work */
+        com.sun.jndi.ldap.ctl.SortControl sctl = new com.sun.jndi.ldap.ctl.SortControl(
+                sortKeys, // sort by cn
+                Control.CRITICAL
+        );
+
+        /* VLV that returns the first 20 answers */
+        VirtualListViewControl vctl =
+                new VirtualListViewControl(offset + 1, 0, 0, (pageSize - 1), Control.CRITICAL);
+
+        ldapContext.setRequestControls(new Control[]{
+                sctl,
+                vctl
+        });
     }
 
     @Override
@@ -829,6 +871,107 @@ public class OrganizationUserStoreManager extends AbstractOrganizationMgtUserSto
             ErrorMessage errorMessage = ErrorMessage.ERROR_WHILE_PAGINATED_SEARCH;
             log.error(errorMessage.getMessage(), e);
             throw new UserStoreException(errorMessage.getMessage(), errorMessage.getCode(), e);
+        } finally {
+            JNDIUtil.closeNamingEnumeration(answer);
+        }
+        return users;
+    }
+
+    private List<User> performLDAPVlvSearch(LdapContext ldapContext, LDAPSearchSpecification ldapSearchSpecification,
+                                            String orgSearchBase, String orgIdentifierAttribute, int pageSize, int offset,
+                                            List<ExpressionCondition> expressionConditions, boolean filterByOrgName)
+            throws UserStoreException {
+
+        boolean isGroupFiltering = ldapSearchSpecification.isGroupFiltering();
+        boolean isUsernameFiltering = ldapSearchSpecification.isUsernameFiltering();
+        boolean isClaimFiltering = ldapSearchSpecification.isClaimFiltering();
+        boolean isMemberShipPropertyFound = ldapSearchSpecification.isMemberShipPropertyFound();
+
+        String searchFilter = ldapSearchSpecification.getSearchFilterQuery();
+        SearchControls searchControls = ldapSearchSpecification.getSearchControls();
+        String[] searchBaseArray;
+        // If organization is defined in the request
+        if (orgSearchBase != null) {
+            // Search only in the given OU, not in sub trees
+            searchControls.setSearchScope(SearchControls.ONELEVEL_SCOPE);
+            // Search in the organization's user search base (DN)
+            searchBaseArray = new String[]{orgSearchBase};
+        } else {
+            // admin users can do full tree search
+            // Non-admin users can only search in allowed organizations
+            // Threads without an authenticated user, are also eligible for a full tree search
+            if (StringUtils.isNotBlank(getAuthenticatedUsername()) && !isAuthorizedAsAdmin()) {
+                // Alter the search filter to include authorized org IDs as search conditions
+                searchFilter = getAuthorizedSearchFilter(searchFilter, orgIdentifierAttribute, filterByOrgName);
+            }
+            // Use the default search base (Search will NOT be limited to one level)
+            searchBaseArray = ldapSearchSpecification.getSearchBases().split("#");
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("Searching in the subdirectory: " + Arrays.toString(searchBaseArray));
+        }
+        List<String> returnedAttributes = Arrays.asList(searchControls.getReturningAttributes());
+        NamingEnumeration<SearchResult> answer = null;
+        List<User> users = new ArrayList<>();
+
+        if (log.isDebugEnabled()) {
+            log.debug(String.format("Searching for user(s) with SearchFilter: %s and page size %d", searchFilter,
+                    pageSize));
+        }
+
+        try {
+            for (String searchBase : searchBaseArray) {
+
+                List<User> tempUserList = new ArrayList<>();
+                answer = ldapContext.search(escapeDNForSearch(searchBase),
+                        searchFilter, searchControls);
+                if (answer.hasMore()) {
+                    tempUserList = getUserListFromSearch(isGroupFiltering, returnedAttributes, answer,
+                            isSingleAttributeFilterOperation(expressionConditions));
+                }
+                if (CollectionUtils.isNotEmpty(tempUserList)) {
+                    if (isMemberShipPropertyFound) {
+
+                        users.addAll(membershipGroupFilterPostProcessing(isUsernameFiltering, isClaimFiltering,
+                                expressionConditions, tempUserList));
+                    } else {
+                        users.addAll(tempUserList);
+                    }
+                }
+            }
+        } catch (PartialResultException e) {
+            // Can be due to referrals in AD. So just ignore error.
+            if (isIgnorePartialResultException()) {
+                if (log.isDebugEnabled()) {
+                    log.debug(String.format("Error occurred while searching for user(s) for filter: %s",
+                            searchFilter), e);
+                }
+            } else {
+                ErrorMessage errorMessage = ErrorMessage.ERROR_SEARCHING_WITH_FILTER;
+                String msg = String.format(errorMessage.getMessage(), searchFilter);
+                log.error(msg, e);
+                throw new UserStoreException(msg, errorMessage.getCode(), e);
+            }
+        } catch (NamingException | UndeclaredThrowableException e) {
+            try {
+                Control[] responseControls = ldapContext.getResponseControls();
+                for (Control control : responseControls) {
+                    if (control instanceof VirtualListViewResponseControl) {
+                        if (((VirtualListViewResponseControl) control).getResultCode() != 0) {
+                            // Virtual list view error means no users found with the given indexes.
+                            return users;
+                        }
+                    }
+                }
+            } catch (NamingException namingException) {
+                // Ignore and proceed with error response
+            }
+
+            ErrorMessage errorMessage = ErrorMessage.ERROR_SEARCHING_WITH_FILTER;
+            String msg = String.format(errorMessage.getMessage(), searchFilter);
+            log.error(msg, e);
+            throw new UserStoreException(msg, errorMessage.getCode(), e);
         } finally {
             JNDIUtil.closeNamingEnumeration(answer);
         }

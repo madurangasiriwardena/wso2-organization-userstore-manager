@@ -100,6 +100,11 @@
             <artifactId>org.wso2.carbon.identity.scim2.common</artifactId>
             <version>${identity.inbound.provisioning.scim2.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.glassfish.main.ldapbp</groupId>
+            <artifactId>ldapbp</artifactId>
+            <version>6.0.0</version>
+        </dependency>
     </dependencies>
 
     <build>
